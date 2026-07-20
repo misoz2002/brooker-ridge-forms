@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.0.3
+ * Version: 2.0.4
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.0.3';
+    const VERSION = '2.0.4';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
@@ -26,16 +26,19 @@ final class BRAH_Forms {
         add_action('init', [__CLASS__, 'register_submission_type']);
         add_filter('pre_set_site_transient_update_plugins', [__CLASS__, 'check_for_update']);
         add_filter('plugins_api', [__CLASS__, 'plugin_information'], 20, 3);
+        add_action('delete_site_transient_update_plugins', [__CLASS__, 'clear_release_cache']);
     }
 
     private static function release() {
         $cached=get_transient('brah_forms_github_release'); if($cached!==false)return $cached;
         $response=wp_remote_get('https://api.github.com/repos/misoz2002/brooker-ridge-forms/releases/latest',['timeout'=>10,'headers'=>['Accept'=>'application/vnd.github+json','User-Agent'=>'Brooker-Ridge-Forms/'.self::VERSION]]);
         if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200)return false;
-        $release=json_decode(wp_remote_retrieve_body($response),true); if(empty($release['tag_name']))return false; set_transient('brah_forms_github_release',$release,6*HOUR_IN_SECONDS); return $release;
+        $release=json_decode(wp_remote_retrieve_body($response),true); if(empty($release['tag_name']))return false; set_transient('brah_forms_github_release',$release,15*MINUTE_IN_SECONDS); return $release;
     }
+    public static function clear_release_cache() { delete_transient('brah_forms_github_release'); }
     private static function release_package($release) {
-        foreach((array)($release['assets']??[]) as $asset)if(($asset['name']??'')==='brooker-ridge-forms.zip')return $asset['browser_download_url']??''; return '';
+        $version=ltrim((string)($release['tag_name']??''),'v'); if(!preg_match('/^\d+\.\d+\.\d+$/',$version))return '';
+        $expected='brooker-ridge-forms-'.$version.'.zip'; foreach((array)($release['assets']??[]) as $asset)if(($asset['name']??'')===$expected)return $asset['browser_download_url']??''; return '';
     }
     public static function check_for_update($transient) {
         if(empty($transient->checked))return $transient; $release=self::release(); if(!$release)return $transient; $version=ltrim($release['tag_name'],'v'); $package=self::release_package($release);
@@ -229,6 +232,11 @@ final class BRAH_Forms {
         return $html.self::end($type);
     }
     private static function condition_met($f,$data) { if(empty($f['condition_field']))return true;$actual=$data[$f['condition_field']]??'';if(is_array($actual))return in_array($f['condition_value'],$actual,true);return (string)$actual===(string)$f['condition_value']; }
+    private static function log_event($event,$context=[]) {
+        if(!defined('WP_DEBUG_LOG')||!WP_DEBUG_LOG)return;
+        $safe=['event'=>sanitize_key($event)]; foreach(['form_type','submission_id','email_delivery','google_delivery','reason'] as $key)if(isset($context[$key]))$safe[$key]=sanitize_text_field((string)$context[$key]);
+        error_log('Brooker Ridge Forms '.wp_json_encode($safe));
+    }
 
     public static function appointment() {
         return self::render_schema('appointment','Request an Appointment','Complete this form and our team will contact you to confirm availability.');
@@ -240,7 +248,7 @@ final class BRAH_Forms {
 
     public static function submit() {
         $type=sanitize_key($_POST['form_type']??''); $back=wp_get_referer()?:home_url('/');
-        $fail=function($reason='')use($back){wp_safe_redirect(add_query_arg(['brah_form'=>'error','brah_reason'=>sanitize_key($reason)],$back));exit;};
+        $fail=function($reason='')use($back,$type){self::log_event('submission_rejected',['form_type'=>$type,'reason'=>$reason]);wp_safe_redirect(add_query_arg(['brah_form'=>'error','brah_reason'=>sanitize_key($reason)],remove_query_arg(['brah_form','brah_reason'],$back)));exit;};
         if(!in_array($type,['appointment','registration'],true)||!wp_verify_nonce($_POST['brah_nonce']??'','brah_form_'.$type)||!empty($_POST['website'])) $fail('security');
         $token=sanitize_text_field($_POST['captcha_token']??''); $sig=sanitize_text_field($_POST['captcha_sig']??'');
         if(!hash_equals(hash_hmac('sha256',$token,wp_salt('nonce')),$sig)) $fail('security');
@@ -251,13 +259,18 @@ final class BRAH_Forms {
         foreach($_POST as $k=>$v){if(in_array($k,$skip,true))continue;$clean=is_array($v)?array_map('sanitize_text_field',$v):sanitize_textarea_field(wp_unslash($v));$submission[sanitize_key($k)]=$clean;$label=ucwords(str_replace('_',' ',$k));$value=is_array($clean)?implode(', ',$clean):$clean;$lines[]="$label: $value";}
         $attachments=[]; require_once ABSPATH.'wp-admin/includes/file.php';
         foreach($_FILES as $f){$files=isset($f['name'])&&is_array($f['name'])?self::normalize_files($f):[$f];foreach($files as $file){if(empty($file['name'])||$file['error']!==UPLOAD_ERR_OK||$file['size']>8*MB_IN_BYTES)continue;$move=wp_handle_upload($file,['test_form'=>false]);if(empty($move['error']))$attachments[]=$move['file'];}}
+        $submission['email_delivery']='pending'; $submission['google_delivery']='not_configured';
+        $submission_id=wp_insert_post(['post_type'=>'brah_submission','post_status'=>'private','post_title'=>'Form submission – '.current_time('Y-m-d H:i:s'),'post_content'=>wp_json_encode($submission)],true);
+        if(is_wp_error($submission_id)){$storage_error=$submission_id->get_error_code();$submission_id=0;self::log_event('storage_failed',['form_type'=>$type,'reason'=>$storage_error]);}
+        else self::log_event('submission_stored',['form_type'=>$type,'submission_id'=>$submission_id]);
         $subject='Brooker Ridge – '.($type==='appointment'?'Appointment Request':'New Client Registration').' – '.sanitize_text_field($_POST['pet_name']);
         $headers=['Content-Type: text/plain; charset=UTF-8','Reply-To: '.sanitize_email($_POST['email'])]; $sent=wp_mail(self::EMAIL,$subject,implode("\n\n",$lines),$headers,$attachments);
         foreach($attachments as $p) @unlink($p); $submission['email_delivery']=$sent?'sent':'failed';
-        wp_insert_post(['post_type'=>'brah_submission','post_status'=>'private','post_title'=>sanitize_text_field(($submission['owner_last']??'').' – '.($submission['pet_name']??'').' – '.current_time('Y-m-d H:i')),'post_content'=>wp_json_encode($submission)]);
-        $settings=self::settings(); if(!empty($settings['google_webhook'])&&!empty($settings['google_secret'])) wp_remote_post($settings['google_webhook'],['timeout'=>8,'headers'=>['Content-Type'=>'application/json'],'body'=>wp_json_encode(['secret'=>$settings['google_secret'],'submission'=>$submission])]);
+        $settings=self::settings(); if(!empty($settings['google_webhook'])&&!empty($settings['google_secret'])){$google=wp_remote_post($settings['google_webhook'],['timeout'=>8,'headers'=>['Content-Type'=>'application/json'],'body'=>wp_json_encode(['secret'=>$settings['google_secret'],'submission'=>$submission])]);$code=is_wp_error($google)?0:wp_remote_retrieve_response_code($google);$submission['google_delivery']=($code>=200&&$code<300)?'sent':'failed';}
+        if($submission_id)wp_update_post(['ID'=>$submission_id,'post_content'=>wp_json_encode($submission)]);
+        self::log_event('delivery_complete',['form_type'=>$type,'submission_id'=>$submission_id,'email_delivery'=>$submission['email_delivery'],'google_delivery'=>$submission['google_delivery']]);
         set_transient('brah_'.$ip,1,30);
-        wp_safe_redirect(add_query_arg('brah_form','success',$back));exit;
+        wp_safe_redirect(add_query_arg('brah_form','success',remove_query_arg(['brah_form','brah_reason'],$back)));exit;
     }
     private static function normalize_files($f){$out=[];foreach($f['name'] as $i=>$n)$out[]=['name'=>$n,'type'=>$f['type'][$i],'tmp_name'=>$f['tmp_name'][$i],'error'=>$f['error'][$i],'size'=>$f['size'][$i]];return $out;}
 }

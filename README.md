@@ -8,4 +8,4 @@ The repository contains no patient submissions, passwords, database credentials,
 
 ## Updates
 
-GitHub Actions packages each version as `brooker-ridge-forms.zip`. Installed copies check the latest public GitHub release and display normal WordPress plugin updates.
+GitHub Actions packages each tag as an immutable `brooker-ridge-forms-X.Y.Z.zip` asset. Installed copies check the latest public GitHub release and display normal WordPress plugin updates.

@@ -1,8 +1,9 @@
-name: Build WordPress plugin release
+name: Build immutable WordPress plugin release
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -13,26 +14,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Read version
+      - name: Read and validate plugin version
         id: version
-        run: echo "version=$(grep -m1 'Version:' brooker-ridge-forms.php | sed 's/.*Version: *//')" >> "$GITHUB_OUTPUT"
-      - name: Package plugin
+        shell: bash
         run: |
+          version="$(sed -n 's/^ \* Version: //p' brooker-ridge-forms.php | head -n1)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Package and validate plugin
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
           mkdir -p dist/brooker-ridge-forms/assets
           cp brooker-ridge-forms.php README.txt google-apps-script.js dist/brooker-ridge-forms/
           cp assets/forms.css assets/forms.js dist/brooker-ridge-forms/assets/
           cd dist
-          zip -qr brooker-ridge-forms.zip brooker-ridge-forms
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Brooker Ridge Forms v${{ steps.version.outputs.version }}
-          body: |
-            Automatic WordPress release for Brooker Ridge Forms.
-
-            Install the ZIP once; subsequent versions appear through WordPress → Plugins → Update now.
-          files: dist/brooker-ridge-forms.zip
-          make_latest: true
-          fail_on_unmatched_files: true
-          overwrite_files: true
+          zip -qr "brooker-ridge-forms-$version.zip" brooker-ridge-forms
+          test "$(zipinfo -1 "brooker-ridge-forms-$version.zip" | cut -d/ -f1 | sort -u)" = "brooker-ridge-forms"
+      - name: Publish immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          asset="dist/brooker-ridge-forms-$version.zip"
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "Release v$version already exists; leaving its immutable asset unchanged."
+            exit 0
+          fi
+          gh release create "v$version" "$asset" \
+            --title "Brooker Ridge Forms v$version" \
+            --notes "Validated WordPress plugin release. The ZIP contains one top-level brooker-ridge-forms folder."
