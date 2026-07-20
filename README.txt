@@ -18,7 +18,7 @@ Where to edit:
 GOOGLE SHEETS SETUP
 1. Sign in to brah.reception@gmail.com and open https://script.google.com.
 2. Create a new project and paste the contents of google-apps-script.js.
-3. Replace REPLACE_WITH_A_LONG_PRIVATE_SECRET with a long random private phrase.
+3. Replace REPLACE_WITH_YOUR_GOOGLE_SPREADSHEET_ID with the ID from the clinic Sheet URL, and replace REPLACE_WITH_A_LONG_PRIVATE_SECRET with a long random private phrase.
 4. Deploy > New deployment > Web app. Execute as Me. Access: Anyone.
 5. Copy the Web App URL ending in /exec.
 6. In WordPress, open Settings > Brooker Ridge Forms. Paste the Web App URL and the exact same private secret, then Save.
