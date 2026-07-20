@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.0
+ * Version: 2.1.1
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.0';
+    const VERSION = '2.1.1';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
@@ -41,8 +41,9 @@ final class BRAH_Forms {
         $expected='brooker-ridge-forms-'.$version.'.zip'; foreach((array)($release['assets']??[]) as $asset)if(($asset['name']??'')===$expected)return $asset['browser_download_url']??''; return '';
     }
     public static function check_for_update($transient) {
-        if(empty($transient->checked))return $transient; $release=self::release(); if(!$release)return $transient; $version=ltrim($release['tag_name'],'v'); $package=self::release_package($release);
-        if($package&&version_compare(self::VERSION,$version,'<')){$plugin=plugin_basename(__FILE__);$transient->response[$plugin]=(object)['slug'=>'brooker-ridge-forms','plugin'=>$plugin,'new_version'=>$version,'url'=>'https://github.com/misoz2002/brooker-ridge-forms','package'=>$package,'tested'=>get_bloginfo('version'),'requires_php'=>'7.4'];}
+        if(empty($transient->checked))return $transient; $release=self::release(); if(!$release)return $transient; $version=ltrim($release['tag_name'],'v'); $package=self::release_package($release); $plugin=plugin_basename(__FILE__);
+        if($package&&version_compare(self::VERSION,$version,'<')){$transient->response[$plugin]=(object)['slug'=>'brooker-ridge-forms','plugin'=>$plugin,'new_version'=>$version,'url'=>'https://github.com/misoz2002/brooker-ridge-forms','package'=>$package,'tested'=>get_bloginfo('version'),'requires_php'=>'7.4'];}
+        else{unset($transient->response[$plugin]);}
         return $transient;
     }
     public static function plugin_information($result,$action,$args) {
