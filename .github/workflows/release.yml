@@ -1,6 +1,9 @@
 name: Build immutable WordPress plugin release
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -14,6 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate PHP and JavaScript
+        shell: bash
+        run: |
+          find . -path './dist' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/load-smoke.php
+          node --check assets/forms.js
       - name: Read and validate plugin version
         id: version
         shell: bash
@@ -25,15 +34,17 @@ jobs:
         shell: bash
         run: |
           version="${{ steps.version.outputs.version }}"
-          mkdir -p dist/brooker-ridge-forms/assets
+          mkdir -p dist/brooker-ridge-forms/assets dist/brooker-ridge-forms/includes
           cp brooker-ridge-forms.php README.txt google-apps-script.js dist/brooker-ridge-forms/
-          cp assets/forms.css assets/forms.js dist/brooker-ridge-forms/assets/
+          cp assets/forms.css assets/forms.js assets/portal.css dist/brooker-ridge-forms/assets/
+          cp includes/class-brah-client-portal.php dist/brooker-ridge-forms/includes/
           cd dist
           zip -qr "brooker-ridge-forms-$version.zip" brooker-ridge-forms
           test "$(zipinfo -1 "brooker-ridge-forms-$version.zip" | cut -d/ -f1 | sort -u)" = "brooker-ridge-forms"
           cp "brooker-ridge-forms-$version.zip" brooker-ridge-forms.zip
           test "$(sha256sum "brooker-ridge-forms-$version.zip" | cut -d' ' -f1)" = "$(sha256sum brooker-ridge-forms.zip | cut -d' ' -f1)"
       - name: Publish immutable release
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
