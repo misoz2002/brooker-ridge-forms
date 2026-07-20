@@ -1,0 +1,38 @@
+name: Build WordPress plugin release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read version
+        id: version
+        run: echo "version=$(grep -m1 'Version:' brooker-ridge-forms.php | sed 's/.*Version: *//')" >> "$GITHUB_OUTPUT"
+      - name: Package plugin
+        run: |
+          mkdir -p dist/brooker-ridge-forms/assets
+          cp brooker-ridge-forms.php README.txt google-apps-script.js dist/brooker-ridge-forms/
+          cp assets/forms.css assets/forms.js dist/brooker-ridge-forms/assets/
+          cd dist
+          zip -qr brooker-ridge-forms.zip brooker-ridge-forms
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Brooker Ridge Forms v${{ steps.version.outputs.version }}
+          body: |
+            Automatic WordPress release for Brooker Ridge Forms.
+
+            Install the ZIP once; subsequent versions appear through WordPress → Plugins → Update now.
+          files: dist/brooker-ridge-forms.zip
+          make_latest: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
