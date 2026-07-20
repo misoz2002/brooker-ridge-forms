@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.2
+ * Version: 2.1.3
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.2';
+    const VERSION = '2.1.3';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
@@ -25,6 +25,7 @@ final class BRAH_Forms {
         add_action('admin_post_brah_save_editor', [__CLASS__, 'save_editor']);
         add_action('init', [__CLASS__, 'register_submission_type']);
         add_filter('pre_set_site_transient_update_plugins', [__CLASS__, 'check_for_update']);
+        add_filter('site_transient_update_plugins', [__CLASS__, 'suppress_stale_update']);
         add_filter('plugins_api', [__CLASS__, 'plugin_information'], 20, 3);
         add_action('delete_site_transient_update_plugins', [__CLASS__, 'clear_release_cache']);
     }
@@ -45,6 +46,10 @@ final class BRAH_Forms {
         if($package&&version_compare(self::VERSION,$version,'<')){$transient->response[$plugin]=(object)['slug'=>'brooker-ridge-forms','plugin'=>$plugin,'new_version'=>$version,'url'=>'https://github.com/misoz2002/brooker-ridge-forms','package'=>$package,'tested'=>get_bloginfo('version'),'requires_php'=>'7.4'];}
         else{unset($transient->response[$plugin]);}
         return $transient;
+    }
+    public static function suppress_stale_update($transient) {
+        if(!is_object($transient))return $transient;$plugin=plugin_basename(__FILE__);$version=(string)($transient->response[$plugin]->new_version??'');
+        if($version&&!version_compare(self::VERSION,$version,'<'))unset($transient->response[$plugin]);return $transient;
     }
     public static function plugin_information($result,$action,$args) {
         if($action!=='plugin_information'||($args->slug??'')!=='brooker-ridge-forms')return $result; $release=self::release(); if(!$release)return $result; $version=ltrim($release['tag_name'],'v');
