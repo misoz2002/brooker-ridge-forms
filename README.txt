@@ -13,7 +13,7 @@ Where to edit:
   WordPress Dashboard > Settings > Brooker Ridge Forms — change colours, width, corner roundness, and Google Sheets connection.
   brooker-ridge-forms.php — questions, choices, required fields, notification email, and submission processing.
   assets/forms.css — colours, spacing, typography, mobile layout, and button styling.
-  assets/forms.js — second-pet display logic and CAPTCHA display.
+  assets/forms.js — conditional-field display logic and submit state.
 
 GOOGLE SHEETS SETUP
 1. Sign in to brah.reception@gmail.com and open https://script.google.com.
@@ -24,7 +24,7 @@ GOOGLE SHEETS SETUP
 6. In WordPress, open Settings > Brooker Ridge Forms. Paste the Web App URL and the exact same private secret, then Save.
 7. Submit one test form and confirm that a row appears in the correct tab of the Google Sheet.
 
-Security included: WordPress nonce, signed arithmetic CAPTCHA, hidden honeypot, 30-second IP throttling, validation, upload size limit, and sanitization.
+Security included: WordPress nonce, signed and time-limited human-confirmation token, checkbox confirmation, hidden honeypot, minimum completion time, 30-second IP throttling, validation, upload size limit, and sanitization.
 
 CONDITIONAL LOGIC
 In the Form Editor, use "Show only when" to choose a controlling question, then enter the exact answer under "Equals". Example: Pet Information 2 fields show only when Register Another Pet? equals Yes. Hidden conditional fields are disabled and are not treated as required until shown.
