@@ -5,6 +5,7 @@ Install: WordPress Dashboard > Plugins > Add New Plugin > Upload Plugin, choose 
 Shortcodes:
   [brooker_appointment_form]
   [brooker_registration_form]
+  [brooker_client_portal]
 
 After activation, replace each Jotform iframe/code module with the matching shortcode in a Divi Text or Code module.
 
@@ -14,6 +15,18 @@ Where to edit:
   brooker-ridge-forms.php — questions, choices, required fields, notification email, and submission processing.
   assets/forms.css — colours, spacing, typography, mobile layout, and button styling.
   assets/forms.js — conditional-field display logic and submit state.
+  WordPress Dashboard > Settings > Brooker Ridge Client Portal — enable the optional portal, approve client accounts, and manage client requests.
+
+CLIENT PORTAL
+The optional Client Portal keeps the public appointment and registration forms available. When enabled, the plugin creates a Client Portal page containing [brooker_client_portal].
+
+New accounts require email verification and clinic approval. Approved clients can save contact details and pet profiles, request appointments, request medication refills, request food, and view request statuses. Client accounts cannot access WordPress administration. The portal does not expose or import medical records.
+
+Clinic workflow:
+1. Open Settings > Brooker Ridge Client Portal and enable the portal.
+2. Review verified registrations in the Client Accounts table and approve only known clients.
+3. Review appointment, refill, and food requests in the Client Requests table.
+4. Update each request status and optionally include a message visible to the client.
 
 GOOGLE SHEETS SETUP
 1. Sign in to brah.reception@gmail.com and open https://script.google.com.

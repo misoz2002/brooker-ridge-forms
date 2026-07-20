@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.0.7
+ * Version: 2.1.0
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.0.7';
+    const VERSION = '2.1.0';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
@@ -47,7 +47,7 @@ final class BRAH_Forms {
     }
     public static function plugin_information($result,$action,$args) {
         if($action!=='plugin_information'||($args->slug??'')!=='brooker-ridge-forms')return $result; $release=self::release(); if(!$release)return $result; $version=ltrim($release['tag_name'],'v');
-        return (object)['name'=>'Brooker Ridge Forms','slug'=>'brooker-ridge-forms','version'=>$version,'author'=>'Brooker Ridge Animal Hospital','homepage'=>'https://github.com/misoz2002/brooker-ridge-forms','download_link'=>self::release_package($release),'sections'=>['description'=>'Subscription-free appointment and new-client forms with a visual editor, conditional logic, secure submissions, and Google Sheets support.','changelog'=>wp_kses_post(nl2br($release['body']??''))]];
+        return (object)['name'=>'Brooker Ridge Forms','slug'=>'brooker-ridge-forms','version'=>$version,'author'=>'Brooker Ridge Animal Hospital','homepage'=>'https://github.com/misoz2002/brooker-ridge-forms','download_link'=>self::release_package($release),'sections'=>['description'=>'Subscription-free public forms plus an optional, approval-gated client portal for appointment, refill, and food requests.','changelog'=>wp_kses_post(nl2br($release['body']??''))]];
     }
 
     public static function register_submission_type() {
@@ -274,4 +274,7 @@ final class BRAH_Forms {
     }
     private static function normalize_files($f){$out=[];foreach($f['name'] as $i=>$n)$out[]=['name'=>$n,'type'=>$f['type'][$i],'tmp_name'=>$f['tmp_name'][$i],'error'=>$f['error'][$i],'size'=>$f['size'][$i]];return $out;}
 }
+require_once __DIR__.'/includes/class-brah-client-portal.php';
 BRAH_Forms::init();
+BRAH_Client_Portal::init();
+register_activation_hook(__FILE__, ['BRAH_Client_Portal','activate']);

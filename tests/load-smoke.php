@@ -1,0 +1,16 @@
+<?php
+define('ABSPATH', __DIR__.'/wordpress/');
+$GLOBALS['brah_test_actions']=[];$GLOBALS['brah_test_filters']=[];$GLOBALS['brah_test_shortcodes']=[];
+function add_action($hook,$callback,$priority=10,$accepted_args=1){$GLOBALS['brah_test_actions'][$hook]=[$callback,$priority,$accepted_args];}
+function add_filter($hook,$callback,$priority=10,$accepted_args=1){$GLOBALS['brah_test_filters'][$hook]=[$callback,$priority,$accepted_args];}
+function add_shortcode($tag,$callback){$GLOBALS['brah_test_shortcodes'][$tag]=$callback;}
+function register_activation_hook($file,$callback){$GLOBALS['brah_test_activation']=[$file,$callback];}
+
+require dirname(__DIR__).'/brooker-ridge-forms.php';
+
+$required_actions=['admin_post_nopriv_brah_submit_form','admin_post_nopriv_brah_portal_register','admin_post_nopriv_brah_portal_login','admin_post_brah_portal_request','admin_post_brah_portal_account_action'];
+$required_shortcodes=['brooker_appointment_form','brooker_registration_form','brooker_client_portal'];
+foreach($required_actions as $hook)if(empty($GLOBALS['brah_test_actions'][$hook])){fwrite(STDERR,"Missing action: {$hook}\n");exit(1);}
+foreach($required_shortcodes as $tag)if(empty($GLOBALS['brah_test_shortcodes'][$tag])){fwrite(STDERR,"Missing shortcode: {$tag}\n");exit(1);}
+if(BRAH_Forms::VERSION!=='2.1.0'||!class_exists('BRAH_Client_Portal')){fwrite(STDERR,"Portal version or class mismatch.\n");exit(1);}
+echo "Plugin load smoke test passed.\n";
