@@ -31,6 +31,8 @@ jobs:
           cd dist
           zip -qr "brooker-ridge-forms-$version.zip" brooker-ridge-forms
           test "$(zipinfo -1 "brooker-ridge-forms-$version.zip" | cut -d/ -f1 | sort -u)" = "brooker-ridge-forms"
+          cp "brooker-ridge-forms-$version.zip" brooker-ridge-forms.zip
+          test "$(sha256sum "brooker-ridge-forms-$version.zip" | cut -d' ' -f1)" = "$(sha256sum brooker-ridge-forms.zip | cut -d' ' -f1)"
       - name: Publish immutable release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,10 +40,11 @@ jobs:
         run: |
           version="${{ steps.version.outputs.version }}"
           asset="dist/brooker-ridge-forms-$version.zip"
+          compatibility_asset="dist/brooker-ridge-forms.zip"
           if gh release view "v$version" >/dev/null 2>&1; then
             echo "Release v$version already exists; leaving its immutable asset unchanged."
             exit 0
           fi
-          gh release create "v$version" "$asset" \
+          gh release create "v$version" "$asset" "$compatibility_asset" \
             --title "Brooker Ridge Forms v$version" \
-            --notes "Validated WordPress plugin release. The ZIP contains one top-level brooker-ridge-forms folder."
+            --notes "Validated WordPress plugin release. The versioned ZIP is canonical; the identical compatibility asset lets installed 2.0.2 copies migrate to the versioned updater. Both contain one top-level brooker-ridge-forms folder."
