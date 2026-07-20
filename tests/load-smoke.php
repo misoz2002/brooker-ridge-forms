@@ -12,5 +12,5 @@ $required_actions=['admin_post_nopriv_brah_submit_form','admin_post_nopriv_brah_
 $required_shortcodes=['brooker_appointment_form','brooker_registration_form','brooker_client_portal'];
 foreach($required_actions as $hook)if(empty($GLOBALS['brah_test_actions'][$hook])){fwrite(STDERR,"Missing action: {$hook}\n");exit(1);}
 foreach($required_shortcodes as $tag)if(empty($GLOBALS['brah_test_shortcodes'][$tag])){fwrite(STDERR,"Missing shortcode: {$tag}\n");exit(1);}
-if(BRAH_Forms::VERSION!=='2.1.0'||!class_exists('BRAH_Client_Portal')){fwrite(STDERR,"Portal version or class mismatch.\n");exit(1);}
+if(BRAH_Forms::VERSION!=='2.1.1'||!class_exists('BRAH_Client_Portal')){fwrite(STDERR,"Portal version or class mismatch.\n");exit(1);}
 echo "Plugin load smoke test passed.\n";
