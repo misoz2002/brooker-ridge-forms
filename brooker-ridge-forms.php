@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.0.6
+ * Version: 2.0.7
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.0.6';
+    const VERSION = '2.0.7';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
@@ -154,13 +154,12 @@ final class BRAH_Forms {
 
     private static function start($type, $title, $intro) {
         wp_enqueue_style('brah-forms'); wp_enqueue_script('brah-forms');
-        $a = wp_rand(2, 9); $b = wp_rand(1, 9); $answer = $a + $b;
-        $token = base64_encode(wp_json_encode(['a'=>$answer,'t'=>time()]));
+        $token = base64_encode(wp_json_encode(['t'=>time(),'f'=>$type]));
         $sig = hash_hmac('sha256', $token, wp_salt('nonce'));
         ob_start();
         $status = isset($_GET['brah_form']) ? sanitize_key($_GET['brah_form']) : '';
         if ($status === 'success') echo '<div class="brah-notice success" role="status">Thank you. Your form was sent successfully. Our team will contact you shortly.</div>';
-        if ($status === 'error') { $reasons=['security'=>'The form security check expired. Please refresh the page and try again.','captcha'=>'The human-verification answer was incorrect. Please try again.','required'=>'A required field is missing. Please review fields marked with an asterisk.','rate'=>'Please wait 30 seconds before sending the form again.']; $reason=sanitize_key($_GET['brah_reason']??''); echo '<div class="brah-notice error" role="alert">'.esc_html($reasons[$reason]??'We could not send the form. Please review the required fields or call 905-898-1010.').'</div>'; }
+        if ($status === 'error') { $reasons=['security'=>'The form security check expired. Please refresh the page and try again.','captcha'=>'Please confirm that you are human and try again.','required'=>'A required field is missing. Please review fields marked with an asterisk.','rate'=>'Please wait 30 seconds before sending the form again.']; $reason=sanitize_key($_GET['brah_reason']??''); echo '<div class="brah-notice error" role="alert">'.esc_html($reasons[$reason]??'We could not send the form. Please review the required fields or call 905-898-1010.').'</div>'; }
         ?>
         <?php $style=self::settings(); ?>
         <form class="brah-form" novalidate style="--navy:<?php echo esc_attr($style['navy']); ?>;--green:<?php echo esc_attr($style['green']); ?>;max-width:<?php echo absint($style['max_width']); ?>px;border-radius:<?php echo absint($style['radius']); ?>px" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -205,7 +204,7 @@ final class BRAH_Forms {
 
     private static function end($type) { ob_start(); ?>
       <section><h2>Human Verification</h2>
-        <label class="captcha">Human verification: What is <span class="captcha-question"></span>? *<input type="number" name="captcha_answer" required inputmode="numeric"></label>
+        <label class="captcha human-check"><input type="checkbox" name="human_confirmed" value="1" required> <span>I’m human</span></label>
       </section><button type="submit">Submit <?php echo $type==='appointment'?'Appointment Request':'Registration'; ?></button><p class="privacy">Your information is sent securely to Brooker Ridge Animal Hospital and is not used for marketing.</p></form>
     <?php return ob_get_clean(); }
 
@@ -252,10 +251,11 @@ final class BRAH_Forms {
         if(!in_array($type,['appointment','registration'],true)||!wp_verify_nonce($_POST['brah_nonce']??'','brah_form_'.$type)||!empty($_POST['website'])) $fail('security');
         $token=sanitize_text_field($_POST['captcha_token']??''); $sig=sanitize_text_field($_POST['captcha_sig']??'');
         if(!hash_equals(hash_hmac('sha256',$token,wp_salt('nonce')),$sig)) $fail('security');
-        $cap=json_decode(base64_decode($token),true); if(!$cap||time()-intval($cap['t']??0)>7200||intval($_POST['captcha_answer']??-1)!==intval($cap['a']??-2)) $fail('captcha');
+        $decoded=base64_decode($token,true); $cap=$decoded===false?null:json_decode($decoded,true); if(!is_array($cap)) $fail('captcha');
+        $age=time()-intval($cap['t']??0); if(($cap['f']??'')!==$type||$age<3||$age>7200||($_POST['human_confirmed']??'')!=='1') $fail('captcha');
         foreach(self::schema($type) as $f){if(empty($f['enabled'])||empty($f['required'])||!self::condition_met($f,$_POST))continue;$id=$f['id'];if(($f['type']??'')==='file'){if(empty($_FILES[$id]['name'][0]))$fail('required');}elseif(empty($_POST[$id]))$fail('required');}
         $ip=hash('sha256',($_SERVER['REMOTE_ADDR']??'').wp_salt()); if(get_transient('brah_'.$ip))$fail('rate');
-        $skip=['action','brah_nonce','captcha_token','captcha_sig','captcha_answer','website']; $lines=[]; $submission=['submitted_at'=>current_time('c')];
+        $skip=['action','brah_nonce','captcha_token','captcha_sig','human_confirmed','website']; $lines=[]; $submission=['submitted_at'=>current_time('c')];
         foreach($_POST as $k=>$v){if(in_array($k,$skip,true))continue;$clean=is_array($v)?array_map('sanitize_text_field',$v):sanitize_textarea_field(wp_unslash($v));$submission[sanitize_key($k)]=$clean;$label=ucwords(str_replace('_',' ',$k));$value=is_array($clean)?implode(', ',$clean):$clean;$lines[]="$label: $value";}
         $attachments=[]; require_once ABSPATH.'wp-admin/includes/file.php';
         foreach($_FILES as $f){$files=isset($f['name'])&&is_array($f['name'])?self::normalize_files($f):[$f];foreach($files as $file){if(empty($file['name'])||$file['error']!==UPLOAD_ERR_OK||$file['size']>8*MB_IN_BYTES)continue;$move=wp_handle_upload($file,['test_form'=>false]);if(empty($move['error']))$attachments[]=$move['file'];}}
@@ -270,7 +270,7 @@ final class BRAH_Forms {
         if($submission_id)wp_update_post(['ID'=>$submission_id,'post_content'=>wp_json_encode($submission)]);
         self::log_event('delivery_complete',['form_type'=>$type,'submission_id'=>$submission_id,'email_delivery'=>$submission['email_delivery'],'google_delivery'=>$submission['google_delivery']]);
         set_transient('brah_'.$ip,1,30);
-        wp_safe_redirect(add_query_arg('brah_form','success',remove_query_arg(['brah_form','brah_reason'],$back)));exit;
+        wp_safe_redirect(home_url('/form-submission-received/'));exit;
     }
     private static function normalize_files($f){$out=[];foreach($f['name'] as $i=>$n)$out[]=['name'=>$n,'type'=>$f['type'][$i],'tmp_name'=>$f['tmp_name'][$i],'error'=>$f['error'][$i],'size'=>$f['size'][$i]];return $out;}
 }
