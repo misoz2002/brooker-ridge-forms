@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.0.2
+ * Version: 2.0.3
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.0.2';
+    const VERSION = '2.0.3';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
@@ -160,7 +160,7 @@ final class BRAH_Forms {
         if ($status === 'error') { $reasons=['security'=>'The form security check expired. Please refresh the page and try again.','captcha'=>'The human-verification answer was incorrect. Please try again.','required'=>'A required field is missing. Please review fields marked with an asterisk.','rate'=>'Please wait 30 seconds before sending the form again.']; $reason=sanitize_key($_GET['brah_reason']??''); echo '<div class="brah-notice error" role="alert">'.esc_html($reasons[$reason]??'We could not send the form. Please review the required fields or call 905-898-1010.').'</div>'; }
         ?>
         <?php $style=self::settings(); ?>
-        <form class="brah-form" style="--navy:<?php echo esc_attr($style['navy']); ?>;--green:<?php echo esc_attr($style['green']); ?>;max-width:<?php echo absint($style['max_width']); ?>px;border-radius:<?php echo absint($style['radius']); ?>px" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <form class="brah-form" novalidate style="--navy:<?php echo esc_attr($style['navy']); ?>;--green:<?php echo esc_attr($style['green']); ?>;max-width:<?php echo absint($style['max_width']); ?>px;border-radius:<?php echo absint($style['radius']); ?>px" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
           <header><span>Brooker Ridge Animal Hospital</span><h1><?php echo esc_html($title); ?></h1><p><?php echo esc_html($intro); ?></p></header>
           <input type="hidden" name="action" value="brah_submit_form"><input type="hidden" name="form_type" value="<?php echo esc_attr($type); ?>">
           <input type="hidden" name="captcha_token" value="<?php echo esc_attr($token); ?>"><input type="hidden" name="captcha_sig" value="<?php echo esc_attr($sig); ?>">
