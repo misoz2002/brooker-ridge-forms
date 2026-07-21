@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.8
+ * Version: 2.1.9
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.8';
+    const VERSION = '2.1.9';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
     private static $homepage_contact_printed = false;
 
@@ -21,6 +21,7 @@ final class BRAH_Forms {
         add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
         add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
         add_action('wp_head', [__CLASS__, 'public_page_meta'], 4);
+        add_action('wp_head', [__CLASS__, 'public_page_robots_meta'], 99);
         add_filter('wp_robots', [__CLASS__, 'public_page_robots']);
         add_filter('wp_resource_hints', [__CLASS__, 'resource_hints'], 10, 2);
         add_filter('script_loader_tag', [__CLASS__, 'defer_plugin_scripts'], 10, 3);
@@ -219,6 +220,11 @@ final class BRAH_Forms {
             unset($robots['index'], $robots['nofollow']);
         }
         return $robots;
+    }
+
+    public static function public_page_robots_meta() {
+        $seo=self::public_page_seo();
+        if(!empty($seo['noindex']))echo '<meta name="robots" content="noindex,follow,max-image-preview:large">'."\n";
     }
 
     public static function resource_hints($urls,$relation_type) {
