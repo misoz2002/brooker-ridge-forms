@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.7
+ * Version: 2.1.8
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.7';
+    const VERSION = '2.1.8';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
     private static $homepage_contact_printed = false;
 
@@ -21,6 +21,7 @@ final class BRAH_Forms {
         add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
         add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
         add_action('wp_head', [__CLASS__, 'public_page_meta'], 4);
+        add_filter('wp_robots', [__CLASS__, 'public_page_robots']);
         add_filter('wp_resource_hints', [__CLASS__, 'resource_hints'], 10, 2);
         add_filter('script_loader_tag', [__CLASS__, 'defer_plugin_scripts'], 10, 3);
         add_filter('wp_get_attachment_image_attributes', [__CLASS__, 'image_loading_attributes'], 10, 3);
@@ -192,8 +193,8 @@ final class BRAH_Forms {
             ''=>['title'=>self::homepage_seo_title(),'description'=>self::homepage_seo_description()],
             'appointments'=>['title'=>'Request a Veterinary Appointment in Newmarket | Brooker Ridge','description'=>'Request an appointment for your dog or cat at Brooker Ridge Animal Hospital in Newmarket. Our team will contact you to confirm availability.'],
             'new-client-registration'=>['title'=>'New Client Registration | Brooker Ridge Animal Hospital','description'=>'Register as a new client with Brooker Ridge Animal Hospital in Newmarket so our veterinary team can prepare your pet patient file.'],
-            'client-portal'=>['title'=>'Client Portal | Brooker Ridge Animal Hospital','description'=>'Sign in to the Brooker Ridge Animal Hospital client portal to request appointments, refills, and pet food from our Newmarket veterinary team.','robots'=>'noindex,follow'],
-            'form-submission-received'=>['title'=>'Form Submission Received | Brooker Ridge Animal Hospital','description'=>'Thank you for contacting Brooker Ridge Animal Hospital. Our Newmarket veterinary team will review your request and follow up shortly.','robots'=>'noindex,follow'],
+            'client-portal'=>['title'=>'Client Portal | Brooker Ridge Animal Hospital','description'=>'Sign in to the Brooker Ridge Animal Hospital client portal to request appointments, refills, and pet food from our Newmarket veterinary team.','noindex'=>true],
+            'form-submission-received'=>['title'=>'Form Submission Received | Brooker Ridge Animal Hospital','description'=>'Thank you for contacting Brooker Ridge Animal Hospital. Our Newmarket veterinary team will review your request and follow up shortly.','noindex'=>true],
         ];
         if(isset($map[$path]))return $map[$path];
         if(function_exists('is_front_page')&&is_front_page())return $map[''];
@@ -204,11 +205,20 @@ final class BRAH_Forms {
         $seo=self::public_page_seo(); if(!$seo)return;
         $desc=$seo['description']??'';
         if($desc)echo "\n".'<meta name="description" content="'.esc_attr($desc).'">'."\n";
-        if(!empty($seo['robots']))echo '<meta name="robots" content="'.esc_attr($seo['robots']).'">'."\n";
         echo '<meta property="og:site_name" content="Brooker Ridge Animal Hospital">'."\n";
         echo '<meta property="og:type" content="website">'."\n";
         echo '<meta property="og:title" content="'.esc_attr($seo['title']??'Brooker Ridge Animal Hospital').'">'."\n";
         if($desc)echo '<meta property="og:description" content="'.esc_attr($desc).'">'."\n";
+    }
+
+    public static function public_page_robots($robots) {
+        $seo=self::public_page_seo();
+        if(!empty($seo['noindex'])){
+            $robots['noindex']=true;
+            $robots['follow']=true;
+            unset($robots['index'], $robots['nofollow']);
+        }
+        return $robots;
     }
 
     public static function resource_hints($urls,$relation_type) {
