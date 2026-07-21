@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.4
+ * Version: 2.1.5
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,8 +10,9 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.4';
+    const VERSION = '2.1.5';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
+    private static $homepage_contact_printed = false;
 
     public static function init() {
         add_shortcode('brooker_appointment_form', [__CLASS__, 'appointment']);
@@ -19,6 +20,7 @@ final class BRAH_Forms {
         add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
         add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
+        add_action('wp_footer', [__CLASS__, 'homepage_footer_contact_block'], 5);
         add_filter('the_content', [__CLASS__, 'homepage_contact_block'], 8);
         add_filter('document_title_parts', [__CLASS__, 'homepage_title_parts'], 20);
         add_filter('pre_get_document_title', [__CLASS__, 'homepage_document_title'], 20);
@@ -235,8 +237,18 @@ final class BRAH_Forms {
 
     public static function homepage_contact_block($content) {
         if(!self::is_public_front_page()||strpos($content,'brah-seo-contact')!==false)return $content;
-        $block='<section class="brah-seo-contact" aria-label="Brooker Ridge Animal Hospital contact information"><h2>Newmarket Veterinary Clinic Location</h2><address><strong>Brooker Ridge Animal Hospital</strong><br>Unit 107, 525 Brooker Ridge<br>Newmarket, Ontario L3X 2M2<br>Phone: <a href="tel:+19058981010">905-898-1010</a></address></section>';
-        return $block.$content;
+        self::$homepage_contact_printed=true;
+        return self::homepage_contact_markup().$content;
+    }
+
+    public static function homepage_footer_contact_block() {
+        if(!self::is_public_front_page()||self::$homepage_contact_printed)return;
+        self::$homepage_contact_printed=true;
+        echo self::homepage_contact_markup();
+    }
+
+    private static function homepage_contact_markup() {
+        return '<section class="brah-seo-contact" aria-label="Brooker Ridge Animal Hospital contact information"><h2>Newmarket Veterinary Clinic Location</h2><address><strong>Brooker Ridge Animal Hospital</strong><br>Unit 107, 525 Brooker Ridge<br>Newmarket, Ontario L3X 2M2<br>Phone: <a href="tel:+19058981010">905-898-1010</a></address></section>';
     }
 
     private static function start($type, $title, $intro) {
