@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.6
+ * Version: 2.1.7
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.6';
+    const VERSION = '2.1.7';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
     private static $homepage_contact_printed = false;
 
@@ -20,6 +20,10 @@ final class BRAH_Forms {
         add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
         add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
+        add_action('wp_head', [__CLASS__, 'public_page_meta'], 4);
+        add_filter('wp_resource_hints', [__CLASS__, 'resource_hints'], 10, 2);
+        add_filter('script_loader_tag', [__CLASS__, 'defer_plugin_scripts'], 10, 3);
+        add_filter('wp_get_attachment_image_attributes', [__CLASS__, 'image_loading_attributes'], 10, 3);
         add_action('wp_footer', [__CLASS__, 'homepage_footer_contact_block'], 5);
         add_filter('the_content', [__CLASS__, 'homepage_contact_block'], 8);
         add_filter('document_title_parts', [__CLASS__, 'homepage_title_parts'], 20);
@@ -181,8 +185,62 @@ final class BRAH_Forms {
         return 'Brooker Ridge Animal Hospital in Newmarket provides veterinary care, surgery, dentistry, vaccinations, diagnostics, and urgent care for pets.';
     }
 
+    private static function public_page_seo() {
+        if(is_admin())return null;
+        $path=trim((string)wp_parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH),'/');
+        $map=[
+            ''=>['title'=>self::homepage_seo_title(),'description'=>self::homepage_seo_description()],
+            'appointments'=>['title'=>'Request a Veterinary Appointment in Newmarket | Brooker Ridge','description'=>'Request an appointment for your dog or cat at Brooker Ridge Animal Hospital in Newmarket. Our team will contact you to confirm availability.'],
+            'new-client-registration'=>['title'=>'New Client Registration | Brooker Ridge Animal Hospital','description'=>'Register as a new client with Brooker Ridge Animal Hospital in Newmarket so our veterinary team can prepare your pet patient file.'],
+            'client-portal'=>['title'=>'Client Portal | Brooker Ridge Animal Hospital','description'=>'Sign in to the Brooker Ridge Animal Hospital client portal to request appointments, refills, and pet food from our Newmarket veterinary team.','robots'=>'noindex,follow'],
+            'form-submission-received'=>['title'=>'Form Submission Received | Brooker Ridge Animal Hospital','description'=>'Thank you for contacting Brooker Ridge Animal Hospital. Our Newmarket veterinary team will review your request and follow up shortly.','robots'=>'noindex,follow'],
+        ];
+        if(isset($map[$path]))return $map[$path];
+        if(function_exists('is_front_page')&&is_front_page())return $map[''];
+        return null;
+    }
+
+    public static function public_page_meta() {
+        $seo=self::public_page_seo(); if(!$seo)return;
+        $desc=$seo['description']??'';
+        if($desc)echo "\n".'<meta name="description" content="'.esc_attr($desc).'">'."\n";
+        if(!empty($seo['robots']))echo '<meta name="robots" content="'.esc_attr($seo['robots']).'">'."\n";
+        echo '<meta property="og:site_name" content="Brooker Ridge Animal Hospital">'."\n";
+        echo '<meta property="og:type" content="website">'."\n";
+        echo '<meta property="og:title" content="'.esc_attr($seo['title']??'Brooker Ridge Animal Hospital').'">'."\n";
+        if($desc)echo '<meta property="og:description" content="'.esc_attr($desc).'">'."\n";
+    }
+
+    public static function resource_hints($urls,$relation_type) {
+        if(is_admin())return $urls;
+        if($relation_type==='preconnect'){
+            $urls[]='https://fonts.gstatic.com';
+            $urls[]='https://www.googletagmanager.com';
+        } elseif($relation_type==='dns-prefetch'){
+            $urls[]='//fonts.googleapis.com';
+            $urls[]='//www.google-analytics.com';
+        }
+        return array_values(array_unique($urls));
+    }
+
+    public static function defer_plugin_scripts($tag,$handle,$src) {
+        if(is_admin()||$handle!=='brah-forms'||strpos($tag,' defer')!==false)return $tag;
+        return str_replace(' src=', ' defer src=', $tag);
+    }
+
+    public static function image_loading_attributes($attr,$attachment,$size) {
+        if(is_admin())return $attr;
+        if(empty($attr['alt'])){
+            $alt=get_post_meta($attachment->ID,'_wp_attachment_image_alt',true)?:get_the_title($attachment->ID);
+            if($alt)$attr['alt']=sanitize_text_field($alt);
+        }
+        if(empty($attr['loading']))$attr['loading']='lazy';
+        if(empty($attr['decoding']))$attr['decoding']='async';
+        return $attr;
+    }
+
     public static function homepage_seo_assets() {
-        if(self::is_public_front_page())wp_enqueue_style('brah-seo');
+        if(self::is_public_front_page()||self::public_page_seo())wp_enqueue_style('brah-seo');
     }
 
     public static function homepage_title_parts($parts) {
@@ -193,15 +251,15 @@ final class BRAH_Forms {
     }
 
     public static function homepage_document_title($title) {
-        return self::is_public_front_page()?self::homepage_seo_title():$title;
+        $seo=self::public_page_seo(); return $seo?($seo['title']??$title):$title;
     }
 
     public static function homepage_aioseo_title($title) {
-        return self::is_public_front_page()?self::homepage_seo_title():$title;
+        $seo=self::public_page_seo(); return $seo?($seo['title']??$title):$title;
     }
 
     public static function homepage_aioseo_description($description) {
-        return self::is_public_front_page()?self::homepage_seo_description():$description;
+        $seo=self::public_page_seo(); return $seo?($seo['description']??$description):$description;
     }
 
     public static function homepage_schema() {

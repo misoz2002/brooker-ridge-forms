@@ -2,3 +2,7 @@
 .brah-form .human-check{display:flex;align-items:center;gap:10px;width:260px;box-sizing:border-box;margin:22px 0 0;padding:16px 18px;border:1px solid #b7c7d4;border-radius:8px;background:#f7fafc;cursor:pointer}.brah-form .human-check input{width:24px;height:24px;margin:0;accent-color:var(--green)}
 .brah-form [hidden]{display:none!important}
 .brah-form.is-submitting{cursor:progress}.brah-form button[aria-busy="true"]{cursor:wait;opacity:.75}
+.brah-form button{min-height:48px}
+.brah-form button:focus-visible{outline:3px solid #79c54255;outline-offset:2px}
+.brah-form button:disabled{cursor:wait;opacity:.75}
+@media(max-width:700px){.brah-form input,.brah-form select,.brah-form textarea{font-size:16px}.brah-form button{width:100%;max-width:360px}}

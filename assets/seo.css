@@ -14,3 +14,19 @@
   font-style: normal;
   line-height: 1.55;
 }
+
+.brah-seo-contact a {
+  color: #082f5f;
+  font-weight: 700;
+}
+
+.brah-seo-contact a:focus-visible {
+  outline: 3px solid #79c542;
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .brah-seo-contact {
+    margin-inline: 0.75rem;
+  }
+}
