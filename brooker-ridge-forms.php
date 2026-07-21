@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.9
+ * Version: 2.2.0
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.9';
+    const VERSION = '2.2.0';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
     private static $homepage_contact_printed = false;
 
@@ -151,12 +151,24 @@ final class BRAH_Forms {
 
     public static function submissions_page() {
         if(!current_user_can('manage_options'))return;
-        $rows=get_posts(['post_type'=>'brah_submission','post_status'=>'private','numberposts'=>100,'orderby'=>'date','order'=>'DESC']); ?>
+        $rows=get_posts(['post_type'=>'brah_submission','post_status'=>'private','numberposts'=>100,'orderby'=>'date','order'=>'DESC']); $settings=self::settings(); ?>
         <div class="wrap"><h1>Brooker Ridge Form Submissions</h1><p>Successful submissions are saved privately in WordPress and can be downloaded as a spreadsheet-compatible CSV file.</p>
+        <?php if(empty($settings['google_webhook'])||empty($settings['google_secret'])): ?><div class="notice notice-warning"><p><strong>Google Sheets is not connected.</strong> Submissions are being saved privately in WordPress, but they will not appear in Google Sheets until the Web App URL and private secret are saved in <a href="<?php echo esc_url(admin_url('options-general.php?page=brah-forms')); ?>">Brooker Ridge Forms settings</a>.</p></div><?php endif; ?>
         <p><a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=brah_export_csv'),'brah_export_csv')); ?>">Download CSV</a></p>
-        <table class="widefat striped"><thead><tr><th>Date</th><th>Form</th><th>Owner</th><th>Pet</th><th>Email</th><th>Phone</th></tr></thead><tbody>
-        <?php if(!$rows): ?><tr><td colspan="6">No submissions have been recorded yet.</td></tr><?php endif; ?>
-        <?php foreach($rows as $row): $d=json_decode($row->post_content,true); ?><tr><td><?php echo esc_html(get_the_date('Y-m-d g:i a',$row)); ?></td><td><?php echo esc_html($d['form_type']??''); ?></td><td><?php echo esc_html(trim(($d['owner_first']??'').' '.($d['owner_last']??''))); ?></td><td><?php echo esc_html($d['pet_name']??''); ?></td><td><?php echo esc_html($d['email']??''); ?></td><td><?php echo esc_html($d['phone']??''); ?></td></tr><?php endforeach; ?>
+        <table class="widefat striped"><thead><tr><th>Date</th><th>Form</th><th>Owner</th><th>Contact</th><th>Address</th><th>Pet</th><th>Request</th><th>Delivery</th><th>Details</th></tr></thead><tbody>
+        <?php if(!$rows): ?><tr><td colspan="9">No submissions have been recorded yet.</td></tr><?php endif; ?>
+        <?php foreach($rows as $row): $d=json_decode($row->post_content,true)?:[]; $address=array_filter([$d['street']??'',$d['unit']??'',$d['city']??'',$d['province']??'',$d['postal_code']??'']); $pet=array_filter([$d['pet_name']??'',$d['species']??'',$d['breed']??'',$d['gender']??'',$d['altered']??'',$d['age']??'']); $request=array_filter([$d['appointment_type']??'',$d['reason']??'',$d['preferred_date']??'',$d['preferred_time']??'']); ?>
+          <tr>
+            <td><?php echo esc_html(get_the_date('Y-m-d g:i a',$row)); ?></td><td><?php echo esc_html($d['form_type']??''); ?></td>
+            <td><?php echo esc_html(trim(($d['owner_first']??'').' '.($d['owner_last']??''))); ?></td>
+            <td><?php echo esc_html(trim(($d['email']??'')."\n".($d['phone']??''))); ?></td>
+            <td><?php echo esc_html(implode(', ',$address)); ?></td>
+            <td><?php echo esc_html(implode(' / ',$pet)); ?></td>
+            <td><?php echo esc_html(implode(' / ',$request)); ?></td>
+            <td><?php echo esc_html('Email: '.($d['email_delivery']??'unknown').' | Sheets: '.($d['google_delivery']??'unknown')); ?></td>
+            <td><details><summary>View full</summary><dl><?php foreach($d as $key=>$value): if(in_array($key,['captcha_token','captcha_sig','website'],true))continue; ?><dt><strong><?php echo esc_html(ucwords(str_replace('_',' ',$key))); ?></strong></dt><dd><?php echo esc_html(is_array($value)?implode('; ',$value):(string)$value); ?></dd><?php endforeach; ?></dl></details></td>
+          </tr>
+        <?php endforeach; ?>
         </tbody></table><p><em>Only WordPress administrators can view or export this information.</em></p></div>
     <?php }
 
