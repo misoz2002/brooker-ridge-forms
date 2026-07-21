@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.0
+ * Version: 2.2.1
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,10 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.0';
+    const VERSION = '2.2.1';
+    const JOTFORM_FALLBACK = true;
+    const JOTFORM_APPOINTMENT_ID = '261831439712054';
+    const JOTFORM_REGISTRATION_ID = '261851787281265';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
     private static $homepage_contact_printed = false;
 
@@ -423,11 +426,24 @@ final class BRAH_Forms {
     }
 
     public static function appointment() {
+        if(self::JOTFORM_FALLBACK)return self::jotform_embed(self::JOTFORM_APPOINTMENT_ID, 'Appointment Request Form');
         return self::render_schema('appointment','Request an Appointment','Complete this form and our team will contact you to confirm availability.');
     }
 
     public static function registration() {
+        if(self::JOTFORM_FALLBACK)return self::jotform_embed(self::JOTFORM_REGISTRATION_ID, 'New Client Registration');
         return self::render_schema('registration','New Client/Pet Registration','Tell us about you and your pet so our team can prepare your patient file.');
+    }
+
+    private static function jotform_embed($id,$title) {
+        $id=preg_replace('/[^0-9]/','',(string)$id); if(!$id)return '';
+        ob_start(); ?>
+        <div class="brah-jotform-fallback" data-brah-temporary-form="jotform">
+          <iframe id="JotFormIFrame-<?php echo esc_attr($id); ?>" title="<?php echo esc_attr($title); ?>" onload="window.parent.scrollTo(0,0)" allowtransparency="true" allow="geolocation; microphone; camera; fullscreen; payment" src="https://form.jotform.com/<?php echo esc_attr($id); ?>" frameborder="0" style="min-width:100%;max-width:100%;height:539px;border:none;" scrolling="no"></iframe>
+          <script src="https://cdn.jotfor.ms/s/umd/latest/for-form-embed-handler.js"></script>
+          <script>window.jotformEmbedHandler("iframe[id='JotFormIFrame-<?php echo esc_js($id); ?>']", "https://form.jotform.com/")</script>
+        </div>
+        <?php return ob_get_clean();
     }
 
     public static function submit() {
