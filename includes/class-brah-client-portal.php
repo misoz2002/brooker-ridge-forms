@@ -9,6 +9,7 @@ final class BRAH_Client_Portal {
 
     public static function init() {
         add_action('init', [__CLASS__, 'register_types_and_roles']);
+        add_action('init', [__CLASS__, 'route_frontend_actions'], 20);
         add_action('admin_init', [__CLASS__, 'admin_settings']);
         add_action('admin_init', [__CLASS__, 'maybe_create_page'], 20);
         add_action('admin_init', [__CLASS__, 'protect_admin']);
@@ -66,6 +67,8 @@ final class BRAH_Client_Portal {
         $s=self::settings(); $url=!empty($s['page_id'])?get_permalink(absint($s['page_id'])):'';
         return $url?:home_url('/client-portal/');
     }
+    private static function portal_action_url() { return self::portal_url(); }
+    private static function portal_logout_url() { return wp_nonce_url(add_query_arg('brah_portal_action','logout',self::portal_url()),'brah_portal_logout'); }
     public static function portal_robots($robots) { $s=self::settings();if(!empty($s['page_id'])&&is_page(absint($s['page_id']))){$robots['noindex']=true;$robots['nofollow']=true;}return $robots; }
 
     public static function admin_menu() {
@@ -121,6 +124,22 @@ final class BRAH_Client_Portal {
     private static function rate_key($action) { return 'brah_portal_'.sanitize_key($action).'_'.hash('sha256',($_SERVER['REMOTE_ADDR']??'').wp_salt()); }
     private static function redirect($status,$extra=[]) { wp_safe_redirect(add_query_arg(['brah_portal'=>$status]+$extra,self::portal_url()));exit; }
 
+    public static function route_frontend_actions() {
+        if(is_admin()||!self::enabled())return;
+        if(($_GET['brah_portal_action']??'')==='logout'&&is_user_logged_in()){
+            check_admin_referer('brah_portal_logout');
+            wp_logout();
+            self::redirect('signed_out');
+        }
+        if(!empty($_GET['brah_portal_verify']))self::handle_verify_email();
+        if(($_SERVER['REQUEST_METHOD']??'')!=='POST')return;
+        $action=sanitize_key($_POST['action']??'');
+        $front_actions=['brah_portal_register','brah_portal_login','brah_portal_resend','brah_portal_profile','brah_portal_pet','brah_portal_request'];
+        if(!in_array($action,$front_actions,true))return;
+        $method='handle_'.str_replace('brah_portal_','',$action);
+        if(is_callable([__CLASS__,$method]))call_user_func([__CLASS__,$method]);
+    }
+
     public static function handle_register() {
         if(!self::enabled())self::redirect('disabled');
         if(!isset($_POST['brah_portal_nonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['brah_portal_nonce'])),'brah_portal_register')||!self::verify_human('register'))self::redirect('security');
@@ -141,7 +160,7 @@ final class BRAH_Client_Portal {
     private static function send_verification($user_id) {
         $user=get_userdata($user_id);if(!$user)return false;
         $token=wp_generate_password(40,false,false);update_user_meta($user_id,'brah_verify_hash',hash_hmac('sha256',$token,wp_salt('auth')));update_user_meta($user_id,'brah_verify_expires',time()+2*DAY_IN_SECONDS);
-        $url=add_query_arg(['action'=>'brah_portal_verify_email','uid'=>$user_id,'token'=>$token],admin_url('admin-post.php'));
+        $url=add_query_arg(['brah_portal_verify'=>1,'uid'=>$user_id,'token'=>$token],self::portal_url());
         $message="Hello {$user->first_name},\n\nPlease verify your email address for the Brooker Ridge Animal Hospital Client Portal:\n\n{$url}\n\nAfter verification, the clinic will review and approve your account. This link expires in 48 hours.";
         return wp_mail($user->user_email,'Verify your Brooker Ridge Client Portal email',$message,['Content-Type: text/plain; charset=UTF-8']);
     }
@@ -180,7 +199,7 @@ final class BRAH_Client_Portal {
         ob_start();echo '<div class="brah-portal">';self::notice();
         if(!is_user_logged_in())self::guest_view();
         elseif(self::is_client())self::dashboard();
-        else echo '<div class="brah-portal-card"><h2>Account not available</h2><p>This signed-in WordPress account is not an approved client account.</p><p><a class="brah-button" href="'.esc_url(wp_logout_url(self::portal_url())).'">Sign out</a></p></div>';
+        else echo '<div class="brah-portal-card"><h2>Account not available</h2><p>This signed-in WordPress account is not an approved client account.</p><p><a class="brah-button" href="'.esc_url(self::portal_logout_url()).'">Sign out</a></p></div>';
         echo '</div>';return ob_get_clean();
     }
 
@@ -193,6 +212,7 @@ final class BRAH_Client_Portal {
             'registration_received'=>['success','If that email can be registered, verification instructions have been sent.'],
             'login_error'=>['error','The email or password was not accepted, or the account is not yet approved.'],
             'login_rate'=>['error','Too many sign-in attempts. Please wait ten minutes and try again.'],
+            'signed_out'=>['success','You have been signed out.'],
             'rate'=>['error','Please wait a minute before trying again.'],'security'=>['error','The security check expired. Please refresh the page and try again.'],
             'profile_saved'=>['success','Your contact information was updated.'],'pet_saved'=>['success','Your pet profile was saved.'],'pet_removed'=>['success','The pet profile was removed.'],
             'request_received'=>['success','Your request was received. The clinic will review it and contact you if needed.'],'request_error'=>['error','Please complete the required request information and try again.']
@@ -203,13 +223,13 @@ final class BRAH_Client_Portal {
     private static function guest_view() { ?>
         <header class="brah-portal-hero"><span>Brooker Ridge Animal Hospital</span><h1>Client Portal</h1><p>Save your details and send repeat requests more quickly. Accounts are optional and require clinic approval.</p></header>
         <div class="brah-portal-columns">
-          <section class="brah-portal-card"><h2>Sign in</h2><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+          <section class="brah-portal-card"><h2>Sign in</h2><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>">
             <input type="hidden" name="action" value="brah_portal_login"><?php wp_nonce_field('brah_portal_login','brah_portal_nonce'); ?>
             <label>Email address<input type="email" name="email" autocomplete="email" required></label><label>Password<input type="password" name="password" autocomplete="current-password" required></label>
             <label class="brah-inline"><input type="checkbox" name="remember" value="1"> Keep me signed in</label><button type="submit">Sign in</button>
             <p><a href="<?php echo esc_url(wp_lostpassword_url(self::portal_url())); ?>">Forgot your password?</a></p>
           </form></section>
-          <section class="brah-portal-card"><h2>Create an optional account</h2><p>Use the portal for appointment, refill, and food requests. Public forms remain available.</p><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+          <section class="brah-portal-card"><h2>Create an optional account</h2><p>Use the portal for appointment, refill, and food requests. Public forms remain available.</p><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>">
             <input type="hidden" name="action" value="brah_portal_register"><?php wp_nonce_field('brah_portal_register','brah_portal_nonce');echo self::token_fields('register'); ?>
             <div class="brah-trap" aria-hidden="true"><label>Leave this blank<input name="website" tabindex="-1" autocomplete="off"></label></div>
             <div class="brah-grid"><label>First name<input name="first_name" autocomplete="given-name" required></label><label>Last name<input name="last_name" autocomplete="family-name" required></label></div>
@@ -217,13 +237,13 @@ final class BRAH_Client_Portal {
             <label>Password <small>(at least 12 characters)</small><input type="password" name="password" autocomplete="new-password" minlength="12" required></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" minlength="12" required></label>
             <label class="brah-inline"><input type="checkbox" name="privacy_consent" value="1" required> I consent to the clinic using this information to manage my account and requests.</label>
             <label class="brah-human"><input type="checkbox" name="human_confirmed" value="1" required> I’m human</label><button type="submit">Request an account</button>
-          </form><details><summary>Didn’t receive the verification email?</summary><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="brah_portal_resend"><?php wp_nonce_field('brah_portal_resend','brah_portal_nonce'); ?><label>Email address<input type="email" name="email" required></label><button type="submit">Resend verification</button></form></details></section>
+          </form><details><summary>Didn’t receive the verification email?</summary><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><input type="hidden" name="action" value="brah_portal_resend"><?php wp_nonce_field('brah_portal_resend','brah_portal_nonce'); ?><label>Email address<input type="email" name="email" required></label><button type="submit">Resend verification</button></form></details></section>
         </div>
     <?php }
 
     private static function dashboard() {
         $user=wp_get_current_user();$pets=self::pets($user->ID); ?>
-        <header class="brah-portal-hero"><span>Brooker Ridge Animal Hospital</span><h1>Welcome, <?php echo esc_html($user->first_name?:$user->display_name); ?></h1><p>Requests are reviewed by clinic staff and are not confirmed until the clinic contacts you.</p><a class="brah-signout" href="<?php echo esc_url(wp_logout_url(self::portal_url())); ?>">Sign out</a></header>
+        <header class="brah-portal-hero"><span>Brooker Ridge Animal Hospital</span><h1>Welcome, <?php echo esc_html($user->first_name?:$user->display_name); ?></h1><p>Requests are reviewed by clinic staff and are not confirmed until the clinic contacts you.</p><a class="brah-signout" href="<?php echo esc_url(self::portal_logout_url()); ?>">Sign out</a></header>
         <nav class="brah-portal-nav"><a href="#requests">New request</a><a href="#history">Request history</a><a href="#pets">My pets</a><a href="#profile">My details</a></nav>
         <section class="brah-portal-card" id="requests"><h2>Send a request</h2><?php if(!$pets): ?><p>Add a pet profile below before sending a request.</p><?php else:self::request_forms($pets);endif; ?></section>
         <?php self::history($user->ID);self::pets_section($pets);self::profile_section($user); ?>
@@ -232,9 +252,9 @@ final class BRAH_Client_Portal {
     private static function pet_options($pets) { foreach($pets as $pet)echo '<option value="'.esc_attr($pet['id']).'">'.esc_html($pet['name'].' — '.$pet['species']).'</option>'; }
     private static function request_forms($pets) { ?>
       <div class="brah-request-grid">
-        <form class="brah-request-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><h3>Appointment</h3><input type="hidden" name="action" value="brah_portal_request"><input type="hidden" name="request_type" value="appointment"><?php wp_nonce_field('brah_portal_request','brah_portal_nonce'); ?><label>Pet<select name="pet_id" required><option value="">Choose a pet</option><?php self::pet_options($pets); ?></select></label><label>Main reason<input name="reason" required></label><label>Preferred date<input type="date" name="preferred_date"></label><label>Preferred time<select name="preferred_time"><option value="">No preference</option><option>Morning</option><option>Afternoon</option><option>Evening</option></select></label><label>Additional details<textarea name="notes" rows="3"></textarea></label><label class="brah-inline"><input type="checkbox" name="acknowledgement" value="1" required> I understand this is a request, not a confirmed appointment.</label><button type="submit">Request appointment</button></form>
-        <form class="brah-request-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><h3>Medication refill</h3><input type="hidden" name="action" value="brah_portal_request"><input type="hidden" name="request_type" value="refill"><?php wp_nonce_field('brah_portal_request','brah_portal_nonce'); ?><label>Pet<select name="pet_id" required><option value="">Choose a pet</option><?php self::pet_options($pets); ?></select></label><label>Medication name<input name="item_name" required></label><label>Current directions or strength<input name="item_details" required></label><label>Quantity requested<input name="quantity"></label><label>Additional notes<textarea name="notes" rows="3"></textarea></label><label class="brah-inline"><input type="checkbox" name="acknowledgement" value="1" required> I understand refills require veterinary approval.</label><button type="submit">Request refill</button></form>
-        <form class="brah-request-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><h3>Food order</h3><input type="hidden" name="action" value="brah_portal_request"><input type="hidden" name="request_type" value="food"><?php wp_nonce_field('brah_portal_request','brah_portal_nonce'); ?><label>Pet<select name="pet_id" required><option value="">Choose a pet</option><?php self::pet_options($pets); ?></select></label><label>Food/product name<input name="item_name" required></label><label>Bag/case size<input name="item_details"></label><label>Quantity<input name="quantity" required></label><label>Additional notes<textarea name="notes" rows="3"></textarea></label><label class="brah-inline"><input type="checkbox" name="acknowledgement" value="1" required> I understand the clinic will confirm availability and pickup.</label><button type="submit">Request food</button></form>
+        <form class="brah-request-card" method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><h3>Appointment</h3><input type="hidden" name="action" value="brah_portal_request"><input type="hidden" name="request_type" value="appointment"><?php wp_nonce_field('brah_portal_request','brah_portal_nonce'); ?><label>Pet<select name="pet_id" required><option value="">Choose a pet</option><?php self::pet_options($pets); ?></select></label><label>Main reason<input name="reason" required></label><label>Preferred date<input type="date" name="preferred_date"></label><label>Preferred time<select name="preferred_time"><option value="">No preference</option><option>Morning</option><option>Afternoon</option><option>Evening</option></select></label><label>Additional details<textarea name="notes" rows="3"></textarea></label><label class="brah-inline"><input type="checkbox" name="acknowledgement" value="1" required> I understand this is a request, not a confirmed appointment.</label><button type="submit">Request appointment</button></form>
+        <form class="brah-request-card" method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><h3>Medication refill</h3><input type="hidden" name="action" value="brah_portal_request"><input type="hidden" name="request_type" value="refill"><?php wp_nonce_field('brah_portal_request','brah_portal_nonce'); ?><label>Pet<select name="pet_id" required><option value="">Choose a pet</option><?php self::pet_options($pets); ?></select></label><label>Medication name<input name="item_name" required></label><label>Current directions or strength<input name="item_details" required></label><label>Quantity requested<input name="quantity"></label><label>Additional notes<textarea name="notes" rows="3"></textarea></label><label class="brah-inline"><input type="checkbox" name="acknowledgement" value="1" required> I understand refills require veterinary approval.</label><button type="submit">Request refill</button></form>
+        <form class="brah-request-card" method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><h3>Food order</h3><input type="hidden" name="action" value="brah_portal_request"><input type="hidden" name="request_type" value="food"><?php wp_nonce_field('brah_portal_request','brah_portal_nonce'); ?><label>Pet<select name="pet_id" required><option value="">Choose a pet</option><?php self::pet_options($pets); ?></select></label><label>Food/product name<input name="item_name" required></label><label>Bag/case size<input name="item_details"></label><label>Quantity<input name="quantity" required></label><label>Additional notes<textarea name="notes" rows="3"></textarea></label><label class="brah-inline"><input type="checkbox" name="acknowledgement" value="1" required> I understand the clinic will confirm availability and pickup.</label><button type="submit">Request food</button></form>
       </div>
     <?php }
 
@@ -245,12 +265,12 @@ final class BRAH_Client_Portal {
 
     private static function pets($user_id) { $pets=get_user_meta($user_id,'brah_client_pets',true);return is_array($pets)?array_values($pets):[]; }
     private static function pets_section($pets) { ?>
-      <section class="brah-portal-card" id="pets"><h2>My pets</h2><div class="brah-pet-list"><?php foreach($pets as $pet): ?><article><h3><?php echo esc_html($pet['name']); ?></h3><p><?php echo esc_html(implode(' · ',array_filter([$pet['species'],$pet['breed'],$pet['age']]))); ?></p><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="brah_portal_pet"><input type="hidden" name="mode" value="delete"><input type="hidden" name="pet_id" value="<?php echo esc_attr($pet['id']); ?>"><?php wp_nonce_field('brah_portal_pet','brah_portal_nonce'); ?><button class="brah-link-button" type="submit">Remove</button></form></article><?php endforeach; ?></div>
-      <details><summary>Add a pet</summary><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="brah_portal_pet"><input type="hidden" name="mode" value="add"><?php wp_nonce_field('brah_portal_pet','brah_portal_nonce'); ?><div class="brah-grid"><label>Pet name<input name="pet_name" required></label><label>Species<select name="species" required><option value="">Choose one</option><option>Dog</option><option>Cat</option><option>Other</option></select></label><label>Breed<input name="breed"></label><label>Age or birth date<input name="age"></label><label>Colour<input name="colour"></label></div><button type="submit">Save pet</button></form></details></section>
+      <section class="brah-portal-card" id="pets"><h2>My pets</h2><div class="brah-pet-list"><?php foreach($pets as $pet): ?><article><h3><?php echo esc_html($pet['name']); ?></h3><p><?php echo esc_html(implode(' · ',array_filter([$pet['species'],$pet['breed'],$pet['age']]))); ?></p><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><input type="hidden" name="action" value="brah_portal_pet"><input type="hidden" name="mode" value="delete"><input type="hidden" name="pet_id" value="<?php echo esc_attr($pet['id']); ?>"><?php wp_nonce_field('brah_portal_pet','brah_portal_nonce'); ?><button class="brah-link-button" type="submit">Remove</button></form></article><?php endforeach; ?></div>
+      <details><summary>Add a pet</summary><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><input type="hidden" name="action" value="brah_portal_pet"><input type="hidden" name="mode" value="add"><?php wp_nonce_field('brah_portal_pet','brah_portal_nonce'); ?><div class="brah-grid"><label>Pet name<input name="pet_name" required></label><label>Species<select name="species" required><option value="">Choose one</option><option>Dog</option><option>Cat</option><option>Other</option></select></label><label>Breed<input name="breed"></label><label>Age or birth date<input name="age"></label><label>Colour<input name="colour"></label></div><button type="submit">Save pet</button></form></details></section>
     <?php }
 
     private static function profile_section($user) { ?>
-      <section class="brah-portal-card" id="profile"><h2>My details</h2><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><input type="hidden" name="action" value="brah_portal_profile"><?php wp_nonce_field('brah_portal_profile','brah_portal_nonce'); ?><div class="brah-grid"><label>First name<input name="first_name" value="<?php echo esc_attr($user->first_name); ?>" required></label><label>Last name<input name="last_name" value="<?php echo esc_attr($user->last_name); ?>" required></label><label>Email address<input value="<?php echo esc_attr($user->user_email); ?>" disabled></label><label>Cell phone<input name="phone" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_phone',true)); ?>" required></label><label>Street address<input name="street" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_street',true)); ?>"></label><label>Unit/suite<input name="unit" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_unit',true)); ?>"></label><label>City<input name="city" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_city',true)); ?>"></label><label>Province<input name="province" maxlength="2" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_province',true)); ?>"></label><label>Postal code<input name="postal_code" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_postal_code',true)); ?>"></label></div><button type="submit">Save my details</button></form></section>
+      <section class="brah-portal-card" id="profile"><h2>My details</h2><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><input type="hidden" name="action" value="brah_portal_profile"><?php wp_nonce_field('brah_portal_profile','brah_portal_nonce'); ?><div class="brah-grid"><label>First name<input name="first_name" value="<?php echo esc_attr($user->first_name); ?>" required></label><label>Last name<input name="last_name" value="<?php echo esc_attr($user->last_name); ?>" required></label><label>Email address<input value="<?php echo esc_attr($user->user_email); ?>" disabled></label><label>Cell phone<input name="phone" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_phone',true)); ?>" required></label><label>Street address<input name="street" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_street',true)); ?>"></label><label>Unit/suite<input name="unit" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_unit',true)); ?>"></label><label>City<input name="city" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_city',true)); ?>"></label><label>Province<input name="province" maxlength="2" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_province',true)); ?>"></label><label>Postal code<input name="postal_code" value="<?php echo esc_attr(get_user_meta($user->ID,'brah_client_postal_code',true)); ?>"></label></div><button type="submit">Save my details</button></form></section>
     <?php }
 
     private static function require_client() { if(!self::enabled()||!self::is_client())wp_die('Not authorized.','Forbidden',['response'=>403]);return get_current_user_id(); }
