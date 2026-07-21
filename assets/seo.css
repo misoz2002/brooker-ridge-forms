@@ -1,0 +1,16 @@
+.brah-seo-contact {
+  margin: 1.25rem auto 1.5rem;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #79c542;
+  background: #f7fafc;
+}
+
+.brah-seo-contact h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.brah-seo-contact address {
+  font-style: normal;
+  line-height: 1.55;
+}

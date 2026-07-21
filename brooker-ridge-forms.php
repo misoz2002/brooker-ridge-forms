@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.1.3
+ * Version: 2.1.4
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,13 +10,20 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.1.3';
+    const VERSION = '2.1.4';
     const EMAIL = 'brah.reception@gmail.com'; // EDIT: form notification recipient.
 
     public static function init() {
         add_shortcode('brooker_appointment_form', [__CLASS__, 'appointment']);
         add_shortcode('brooker_registration_form', [__CLASS__, 'registration']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
+        add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
+        add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
+        add_filter('the_content', [__CLASS__, 'homepage_contact_block'], 8);
+        add_filter('document_title_parts', [__CLASS__, 'homepage_title_parts'], 20);
+        add_filter('pre_get_document_title', [__CLASS__, 'homepage_document_title'], 20);
+        add_filter('aioseo_title', [__CLASS__, 'homepage_aioseo_title'], 20);
+        add_filter('aioseo_description', [__CLASS__, 'homepage_aioseo_description'], 20);
         add_action('admin_post_nopriv_brah_submit_form', [__CLASS__, 'submit']);
         add_action('admin_post_brah_submit_form', [__CLASS__, 'submit']);
         add_action('admin_menu', [__CLASS__, 'admin_menu']);
@@ -155,7 +162,81 @@ final class BRAH_Forms {
 
     public static function assets() {
         wp_register_style('brah-forms', plugins_url('assets/forms.css', __FILE__), [], self::VERSION);
+        wp_register_style('brah-seo', plugins_url('assets/seo.css', __FILE__), [], self::VERSION);
         wp_register_script('brah-forms', plugins_url('assets/forms.js', __FILE__), [], self::VERSION, true);
+    }
+
+    private static function is_public_front_page() {
+        if(is_admin())return false;
+        return function_exists('is_front_page')&&is_front_page();
+    }
+
+    private static function homepage_seo_title() {
+        return 'Brooker Ridge Animal Hospital | Veterinarian in Newmarket';
+    }
+
+    private static function homepage_seo_description() {
+        return 'Brooker Ridge Animal Hospital in Newmarket provides veterinary care, surgery, dentistry, vaccinations, diagnostics, and urgent care for pets.';
+    }
+
+    public static function homepage_seo_assets() {
+        if(self::is_public_front_page())wp_enqueue_style('brah-seo');
+    }
+
+    public static function homepage_title_parts($parts) {
+        if(!self::is_public_front_page())return $parts;
+        $parts['title']='Brooker Ridge Animal Hospital';
+        $parts['tagline']='Veterinarian in Newmarket';
+        return $parts;
+    }
+
+    public static function homepage_document_title($title) {
+        return self::is_public_front_page()?self::homepage_seo_title():$title;
+    }
+
+    public static function homepage_aioseo_title($title) {
+        return self::is_public_front_page()?self::homepage_seo_title():$title;
+    }
+
+    public static function homepage_aioseo_description($description) {
+        return self::is_public_front_page()?self::homepage_seo_description():$description;
+    }
+
+    public static function homepage_schema() {
+        if(!self::is_public_front_page())return;
+        $schema=[
+            '@context'=>'https://schema.org',
+            '@type'=>'VeterinaryCare',
+            '@id'=>home_url('/#veterinary-care'),
+            'name'=>'Brooker Ridge Animal Hospital',
+            'url'=>home_url('/'),
+            'image'=>home_url('/wp-content/uploads/2026/07/cat-dog-image-for-slider-optimized.jpg'),
+            'telephone'=>'+1-905-898-1010',
+            'description'=>self::homepage_seo_description(),
+            'address'=>[
+                '@type'=>'PostalAddress',
+                'streetAddress'=>'Unit 107, 525 Brooker Ridge',
+                'addressLocality'=>'Newmarket',
+                'addressRegion'=>'ON',
+                'postalCode'=>'L3X 2M2',
+                'addressCountry'=>'CA',
+            ],
+            'areaServed'=>[
+                ['@type'=>'City','name'=>'Newmarket'],
+                ['@type'=>'City','name'=>'Aurora'],
+                ['@type'=>'City','name'=>'Richmond Hill'],
+            ],
+            'medicalSpecialty'=>'Veterinary medicine',
+            'priceRange'=>'$$',
+            'sameAs'=>['https://facebook.com/vetsnewmarket','https://x.com/branimalh'],
+        ];
+        echo "\n".'<script type="application/ld+json">'.wp_json_encode($schema).'</script>'."\n";
+    }
+
+    public static function homepage_contact_block($content) {
+        if(!self::is_public_front_page()||strpos($content,'brah-seo-contact')!==false)return $content;
+        $block='<section class="brah-seo-contact" aria-label="Brooker Ridge Animal Hospital contact information"><h2>Newmarket Veterinary Clinic Location</h2><address><strong>Brooker Ridge Animal Hospital</strong><br>Unit 107, 525 Brooker Ridge<br>Newmarket, Ontario L3X 2M2<br>Phone: <a href="tel:+19058981010">905-898-1010</a></address></section>';
+        return $block.$content;
     }
 
     private static function start($type, $title, $intro) {
