@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.3
+ * Version: 2.2.4
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.3';
+    const VERSION = '2.2.4';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';
@@ -278,6 +278,7 @@ final class BRAH_Forms {
 
     public static function clean_homepage_seo_output($html) {
         if(!is_string($html)||$html==='')return $html;
+        static $seen_service_headings=[];
         $html=str_replace('<h1>Welcome to Brooker Ridge Animal Hospital – Trusted Veterinarian in Newmarket</h1>','<h1>Brooker Ridge Animal Hospital Veterinarian in Newmarket</h1>',$html);
         $html=str_replace('<strong>Trusted care for dogs, cats, and small pets in Newmarket and surrounding communities</strong>','Trusted care for dogs, cats, and small pets in Newmarket and surrounding communities',$html);
         $html=str_replace('<strong>Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.</strong>','Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.',$html);
@@ -285,17 +286,22 @@ final class BRAH_Forms {
         $html=str_replace('<h2 style="text-align: center;"><span style="color: #333399;"><a href="https://vetsnewmarket.com/" style="color: #333399;"><strong>Brooker Ridge Animal Hospital</strong></a></span></h2>','<p class="brah-seo-heading-text" style="text-align: center;"><span style="color: #333399;"><a href="https://vetsnewmarket.com/" style="color: #333399;"><strong>Brooker Ridge Animal Hospital</strong></a></span></p>',$html);
         $html=str_replace('<h3 style="text-align: left;"><span itemprop="”name”">Brooker Ridge Animal Hospital</span></h3>','<p class="brah-seo-heading-text" style="text-align: left;"><span itemprop="name">Brooker Ridge Animal Hospital</span></p>',$html);
         $service_headings=[
-            '<h4 class="et_pb_module_header"><span>Vaccinations &amp; Parasite Prevention</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Vaccinations &amp; Parasite Prevention</span></div>',
-            '<h4 class="et_pb_module_header"><span>Veterinary Care &amp; Services</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Veterinary Care &amp; Services</span></div>',
-            '<h4 class="et_pb_module_header"><span>Pet Dentistry</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Pet Dentistry</span></div>',
-            '<h4 class="et_pb_module_header"><span>Surgery &amp; Spay/Neuter</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Surgery &amp; Spay/Neuter</span></div>',
-            '<h4 class="et_pb_module_header"><span>Diagnostics &amp; In-house Lab</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Diagnostics &amp; In-house Lab</span></div>',
+            'Vaccinations &amp; Parasite Prevention'=>true,
+            'Veterinary Care &amp; Services'=>true,
+            'Pet Dentistry'=>true,
+            'Surgery &amp; Spay/Neuter'=>true,
+            'Diagnostics &amp; In-house Lab'=>true,
         ];
-        foreach($service_headings as $search=>$replace){
-            [$html,$found,$offset]=self::replace_once($html,$search,$search);
-            if($found)[$html]=self::replace_once($html,$search,$replace,$offset);
-        }
-        $html=preg_replace('/<a([^>]+href=["\'][^"\']*\?et_blog[^"\']*["\'])(?![^>]*\srel=)([^>]*)>/i','<a$1 rel="nofollow"$2>',$html);
+        $html=preg_replace_callback('/<h4 class="et_pb_module_header"><span>([^<]+)<\/span><\/h4>/',function($match)use(&$seen_service_headings,$service_headings){
+            $text=$match[1];
+            if(empty($service_headings[$text]))return $match[0];
+            if(empty($seen_service_headings[$text])){
+                $seen_service_headings[$text]=true;
+                return $match[0];
+            }
+            return '<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>'.$text.'</span></div>';
+        },$html);
+        $html=preg_replace('/<a([^>]+href=["\'][^"\']*[?&]et_blog[^"\']*["\'])(?![^>]*\srel=)([^>]*)>/i','<a$1 rel="nofollow"$2>',$html);
         return $html;
     }
 
