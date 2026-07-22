@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.6
+ * Version: 2.2.7
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.6';
+    const VERSION = '2.2.7';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';
@@ -310,7 +310,8 @@ final class BRAH_Forms {
     public static function clean_homepage_stored_source($content) {
         if(!is_string($content)||$content==='')return $content;
         $content=str_replace('<h1>Welcome to Brooker Ridge Animal Hospital – Trusted Veterinarian in Newmarket</h1>','<h1>Brooker Ridge Animal Hospital Veterinarian in Newmarket</h1>',$content);
-        $content=preg_replace('/<section class="brah-seo-contact"[\s\S]*?<\/section><script type="application\/ld\+json">[\s\S]*?<\/script>\s*/','',$content);
+        $content=str_replace('Welcome to Brooker Ridge Animal Hospital, conveniently located at 107-525 Brooker Ridge, Newmarket, Ontario.','Brooker Ridge Animal Hospital is conveniently located at 107-525 Brooker Ridge in Newmarket, Ontario.',$content);
+        $content=preg_replace('/\s*<section class="brah-seo-contact"[\s\S]*?<\/script>\s*/','',$content);
         $content=str_replace('<strong>Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.</strong>','Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.',$content);
         $seen=0;
         $content=preg_replace_callback('/<a href="tel:\+19058981010">905-898-1010<\/a>/',function($match)use(&$seen){
@@ -324,7 +325,7 @@ final class BRAH_Forms {
     }
 
     public static function maybe_cleanup_homepage_stored_source() {
-        $option='brah_homepage_source_cleanup_226';
+        $option='brah_homepage_source_cleanup_227';
         if(get_option($option))return;
         $front_id=(int)get_option('page_on_front');
         if(!$front_id)$front_id=41;
@@ -334,8 +335,8 @@ final class BRAH_Forms {
         $original=(string)$post->post_content;
         $clean=self::clean_homepage_stored_source($original);
         if($clean===$original){update_option($option,gmdate('c'),false);return;}
-        if(!get_post_meta($front_id,'_brah_homepage_source_backup_226',true)){
-            add_post_meta($front_id,'_brah_homepage_source_backup_226',$original,true);
+        if(!get_post_meta($front_id,'_brah_homepage_source_backup_227',true)){
+            add_post_meta($front_id,'_brah_homepage_source_backup_227',$original,true);
         }
         $result=wp_update_post(['ID'=>$front_id,'post_content'=>$clean],true);
         if(!is_wp_error($result))update_option($option,gmdate('c'),false);
