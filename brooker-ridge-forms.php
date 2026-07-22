@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.2
+ * Version: 2.2.3
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.2';
+    const VERSION = '2.2.3';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';
@@ -22,6 +22,7 @@ final class BRAH_Forms {
         add_shortcode('brooker_registration_form', [__CLASS__, 'registration']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
+        add_action('template_redirect', [__CLASS__, 'start_homepage_seo_output_buffer'], 0);
         add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
         add_action('wp_head', [__CLASS__, 'public_page_robots_meta'], 99);
         add_filter('wp_robots', [__CLASS__, 'public_page_robots']);
@@ -263,6 +264,41 @@ final class BRAH_Forms {
         if(self::is_public_front_page()||self::public_page_seo())wp_enqueue_style('brah-seo');
     }
 
+    public static function start_homepage_seo_output_buffer() {
+        if(!self::is_public_front_page()||is_admin())return;
+        ob_start([__CLASS__, 'clean_homepage_seo_output']);
+    }
+
+    private static function replace_once($html,$search,$replace,$offset=0) {
+        $pos=strpos($html,$search,$offset);
+        if($pos===false)return [$html,false,$offset];
+        $html=substr_replace($html,$replace,$pos,strlen($search));
+        return [$html,true,$pos+strlen($replace)];
+    }
+
+    public static function clean_homepage_seo_output($html) {
+        if(!is_string($html)||$html==='')return $html;
+        $html=str_replace('<h1>Welcome to Brooker Ridge Animal Hospital – Trusted Veterinarian in Newmarket</h1>','<h1>Brooker Ridge Animal Hospital Veterinarian in Newmarket</h1>',$html);
+        $html=str_replace('<strong>Trusted care for dogs, cats, and small pets in Newmarket and surrounding communities</strong>','Trusted care for dogs, cats, and small pets in Newmarket and surrounding communities',$html);
+        $html=str_replace('<strong>Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.</strong>','Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.',$html);
+        $html=str_replace('<h2 style="text-align: center;"><span style="color: #333399;"><strong><a href="tel:905-898-1010" style="color: #333399;">905-898-1010</a></strong></span></h2>','<p class="brah-seo-heading-text" style="text-align: center;"><span style="color: #333399;"><strong><a href="tel:905-898-1010" style="color: #333399;">905-898-1010</a></strong></span></p>',$html);
+        $html=str_replace('<h2 style="text-align: center;"><span style="color: #333399;"><a href="https://vetsnewmarket.com/" style="color: #333399;"><strong>Brooker Ridge Animal Hospital</strong></a></span></h2>','<p class="brah-seo-heading-text" style="text-align: center;"><span style="color: #333399;"><a href="https://vetsnewmarket.com/" style="color: #333399;"><strong>Brooker Ridge Animal Hospital</strong></a></span></p>',$html);
+        $html=str_replace('<h3 style="text-align: left;"><span itemprop="”name”">Brooker Ridge Animal Hospital</span></h3>','<p class="brah-seo-heading-text" style="text-align: left;"><span itemprop="name">Brooker Ridge Animal Hospital</span></p>',$html);
+        $service_headings=[
+            '<h4 class="et_pb_module_header"><span>Vaccinations &amp; Parasite Prevention</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Vaccinations &amp; Parasite Prevention</span></div>',
+            '<h4 class="et_pb_module_header"><span>Veterinary Care &amp; Services</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Veterinary Care &amp; Services</span></div>',
+            '<h4 class="et_pb_module_header"><span>Pet Dentistry</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Pet Dentistry</span></div>',
+            '<h4 class="et_pb_module_header"><span>Surgery &amp; Spay/Neuter</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Surgery &amp; Spay/Neuter</span></div>',
+            '<h4 class="et_pb_module_header"><span>Diagnostics &amp; In-house Lab</span></h4>'=>'<div class="et_pb_module_header brah-seo-module-heading" role="heading" aria-level="4"><span>Diagnostics &amp; In-house Lab</span></div>',
+        ];
+        foreach($service_headings as $search=>$replace){
+            [$html,$found,$offset]=self::replace_once($html,$search,$search);
+            if($found)[$html]=self::replace_once($html,$search,$replace,$offset);
+        }
+        $html=preg_replace('/<a([^>]+href=["\'][^"\']*\?et_blog[^"\']*["\'])(?![^>]*\srel=)([^>]*)>/i','<a$1 rel="nofollow"$2>',$html);
+        return $html;
+    }
+
     public static function homepage_title_parts($parts) {
         if(!self::is_public_front_page())return $parts;
         $parts['title']='Brooker Ridge Animal Hospital';
@@ -326,7 +362,7 @@ final class BRAH_Forms {
     }
 
     private static function homepage_contact_markup() {
-        return '<section class="brah-seo-contact" aria-label="Brooker Ridge Animal Hospital contact information"><h2>Newmarket Veterinary Clinic Location</h2><address><strong>Brooker Ridge Animal Hospital</strong><br>Unit 107, 525 Brooker Ridge<br>Newmarket, Ontario L3X 2M2<br>Phone: <a href="tel:+19058981010">905-898-1010</a></address></section>';
+        return '<section class="brah-seo-contact" aria-label="Brooker Ridge Animal Hospital contact information"><p class="brah-seo-contact-title">Newmarket Veterinary Clinic Location</p><address><span>Brooker Ridge Animal Hospital</span><br>Unit 107, 525 Brooker Ridge<br>Newmarket, Ontario L3X 2M2<br>Phone: <a href="tel:+19058981010">905-898-1010</a></address></section>';
     }
 
     private static function start($type, $title, $intro) {
