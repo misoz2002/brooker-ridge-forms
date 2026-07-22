@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.4
+ * Version: 2.2.5
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.4';
+    const VERSION = '2.2.5';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';
@@ -30,6 +30,7 @@ final class BRAH_Forms {
         add_filter('script_loader_tag', [__CLASS__, 'defer_plugin_scripts'], 10, 3);
         add_filter('wp_get_attachment_image_attributes', [__CLASS__, 'image_loading_attributes'], 10, 3);
         add_action('wp_footer', [__CLASS__, 'homepage_footer_contact_block'], 5);
+        add_action('wp_footer', [__CLASS__, 'homepage_runtime_seo_cleanup'], 99);
         add_filter('the_content', [__CLASS__, 'homepage_contact_block'], 8);
         add_filter('document_title_parts', [__CLASS__, 'homepage_title_parts'], 20);
         add_filter('pre_get_document_title', [__CLASS__, 'homepage_document_title'], 20);
@@ -369,6 +370,37 @@ final class BRAH_Forms {
 
     private static function homepage_contact_markup() {
         return '<section class="brah-seo-contact" aria-label="Brooker Ridge Animal Hospital contact information"><p class="brah-seo-contact-title">Newmarket Veterinary Clinic Location</p><address><span>Brooker Ridge Animal Hospital</span><br>Unit 107, 525 Brooker Ridge<br>Newmarket, Ontario L3X 2M2<br>Phone: <a href="tel:+19058981010">905-898-1010</a></address></section>';
+    }
+
+    public static function homepage_runtime_seo_cleanup() {
+        if(!self::is_public_front_page())return;
+        ?>
+        <script id="brah-homepage-seo-cleanup">
+        (function(){
+          function run(){
+            var serviceHeadings={'Vaccinations & Parasite Prevention':true,'Veterinary Care & Services':true,'Pet Dentistry':true,'Surgery & Spay/Neuter':true,'Diagnostics & In-house Lab':true};
+            var seen={};
+            document.querySelectorAll('h4.et_pb_module_header').forEach(function(heading){
+              var text=(heading.textContent||'').trim().replace(/\s+/g,' ');
+              if(!serviceHeadings[text])return;
+              if(!seen[text]){seen[text]=true;return;}
+              var replacement=document.createElement('div');
+              replacement.className=(heading.className+' brah-seo-module-heading').trim();
+              replacement.setAttribute('role','heading');
+              replacement.setAttribute('aria-level','4');
+              replacement.innerHTML=heading.innerHTML;
+              heading.parentNode.replaceChild(replacement,heading);
+            });
+            document.querySelectorAll('a[href*="et_blog"]').forEach(function(link){
+              if(!link.getAttribute('rel'))link.setAttribute('rel','nofollow');
+            });
+          }
+          run();
+          if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});
+          window.setTimeout(run,600);
+        }());
+        </script>
+        <?php
     }
 
     private static function start($type, $title, $intro) {
