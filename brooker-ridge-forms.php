@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.5
+ * Version: 2.2.6
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.5';
+    const VERSION = '2.2.6';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';
@@ -40,6 +40,7 @@ final class BRAH_Forms {
         add_action('admin_post_brah_submit_form', [__CLASS__, 'submit']);
         add_action('admin_menu', [__CLASS__, 'admin_menu']);
         add_action('admin_init', [__CLASS__, 'admin_settings']);
+        add_action('admin_init', [__CLASS__, 'maybe_cleanup_homepage_stored_source'], 20);
         add_action('admin_post_brah_export_csv', [__CLASS__, 'export_csv']);
         add_action('admin_post_brah_save_editor', [__CLASS__, 'save_editor']);
         add_action('init', [__CLASS__, 'register_submission_type']);
@@ -304,6 +305,40 @@ final class BRAH_Forms {
         },$html);
         $html=preg_replace('/<a([^>]+href=["\'][^"\']*[?&]et_blog[^"\']*["\'])(?![^>]*\srel=)([^>]*)>/i','<a$1 rel="nofollow"$2>',$html);
         return $html;
+    }
+
+    public static function clean_homepage_stored_source($content) {
+        if(!is_string($content)||$content==='')return $content;
+        $content=str_replace('<h1>Welcome to Brooker Ridge Animal Hospital – Trusted Veterinarian in Newmarket</h1>','<h1>Brooker Ridge Animal Hospital Veterinarian in Newmarket</h1>',$content);
+        $content=preg_replace('/<section class="brah-seo-contact"[\s\S]*?<\/section><script type="application\/ld\+json">[\s\S]*?<\/script>\s*/','',$content);
+        $content=str_replace('<strong>Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.</strong>','Call us today at <a href="tel:+19058981010">905-898-1010</a> to book an appointment with our <a href="https://vetsnewmarket.com">veterinarian in Newmarket, Ontario</a>.',$content);
+        $seen=0;
+        $content=preg_replace_callback('/<a href="tel:\+19058981010">905-898-1010<\/a>/',function($match)use(&$seen){
+            $seen++;
+            if($seen===1)return $match[0];
+            if($seen===2)return '<a href="tel:+19058981010">call our Newmarket veterinary team</a>';
+            if($seen===3)return '<a href="tel:+19058981010">phone the clinic</a>';
+            return '<a href="tel:+19058981010">contact Brooker Ridge</a>';
+        },$content);
+        return $content;
+    }
+
+    public static function maybe_cleanup_homepage_stored_source() {
+        $option='brah_homepage_source_cleanup_226';
+        if(get_option($option))return;
+        $front_id=(int)get_option('page_on_front');
+        if(!$front_id)$front_id=41;
+        if(!$front_id||!current_user_can('edit_post',$front_id))return;
+        $post=get_post($front_id);
+        if(!$post||$post->post_type!=='page')return;
+        $original=(string)$post->post_content;
+        $clean=self::clean_homepage_stored_source($original);
+        if($clean===$original){update_option($option,gmdate('c'),false);return;}
+        if(!get_post_meta($front_id,'_brah_homepage_source_backup_226',true)){
+            add_post_meta($front_id,'_brah_homepage_source_backup_226',$original,true);
+        }
+        $result=wp_update_post(['ID'=>$front_id,'post_content'=>$clean],true);
+        if(!is_wp_error($result))update_option($option,gmdate('c'),false);
     }
 
     public static function homepage_title_parts($parts) {
