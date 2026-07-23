@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.8
+ * Version: 2.2.9
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.8';
+    const VERSION = '2.2.9';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';

@@ -90,6 +90,10 @@ final class BRAH_Client_Portal {
         return in_array(self::ROLE_CLIENT,(array)$user->roles,true)&&get_user_meta($user->ID,'brah_client_status',true)==='approved';
     }
 
+    private static function has_verified_email($user_id) {
+        return (bool)get_user_meta(absint($user_id),'brah_email_verified_at',true);
+    }
+
     public static function gate_login($user,$password) {
         if(is_wp_error($user)||!$user instanceof WP_User)return $user;
         if(in_array(self::ROLE_PENDING,(array)$user->roles,true)){
@@ -180,7 +184,7 @@ final class BRAH_Client_Portal {
 
     public static function handle_login() {
         if(!self::enabled())self::redirect('disabled');
-        if(!isset($_POST['brah_portal_nonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['brah_portal_nonce'])),'brah_portal_login'))self::redirect('security');
+        if(!isset($_POST['brah_portal_nonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['brah_portal_nonce'])),'brah_portal_login')||!self::verify_human('login'))self::redirect('security');
         $key=self::rate_key('login');$attempts=absint(get_transient($key));if($attempts>=5)self::redirect('login_rate');
         $creds=['user_login'=>sanitize_email(wp_unslash($_POST['email']??'')),'user_password'=>wp_unslash((string)($_POST['password']??'')),'remember'=>!empty($_POST['remember'])];$user=wp_signon($creds,is_ssl());
         if(is_wp_error($user)){set_transient($key,$attempts+1,10*MINUTE_IN_SECONDS);self::redirect('login_error');}
@@ -221,12 +225,13 @@ final class BRAH_Client_Portal {
     }
 
     private static function guest_view() { ?>
-        <header class="brah-portal-hero"><span>Brooker Ridge Animal Hospital</span><h1>Client Portal</h1><p>Save your details and send repeat requests more quickly. Accounts are optional and require clinic approval.</p></header>
+        <header class="brah-portal-hero"><span>Brooker Ridge Animal Hospital</span><h1>Client Portal</h1><p>Save your details and send repeat requests more quickly. Accounts are optional and require email verification plus clinic approval.</p></header>
         <div class="brah-portal-columns">
           <section class="brah-portal-card"><h2>Sign in</h2><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>">
-            <input type="hidden" name="action" value="brah_portal_login"><?php wp_nonce_field('brah_portal_login','brah_portal_nonce'); ?>
+            <input type="hidden" name="action" value="brah_portal_login"><?php wp_nonce_field('brah_portal_login','brah_portal_nonce');echo self::token_fields('login'); ?>
+            <div class="brah-trap" aria-hidden="true"><label>Leave this blank<input name="website" tabindex="-1" autocomplete="off"></label></div>
             <label>Email address<input type="email" name="email" autocomplete="email" required></label><label>Password<input type="password" name="password" autocomplete="current-password" required></label>
-            <label class="brah-inline"><input type="checkbox" name="remember" value="1"> Keep me signed in</label><button type="submit">Sign in</button>
+            <label class="brah-human"><input type="checkbox" name="human_confirmed" value="1" required> I&rsquo;m human</label><label class="brah-inline"><input type="checkbox" name="remember" value="1"> Keep me signed in</label><button type="submit">Sign in</button>
             <p><a href="<?php echo esc_url(wp_lostpassword_url(self::portal_url())); ?>">Forgot your password?</a></p>
           </form></section>
           <section class="brah-portal-card"><h2>Create an optional account</h2><p>Use the portal for appointment, refill, and food requests. Public forms remain available.</p><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>">
@@ -236,7 +241,7 @@ final class BRAH_Client_Portal {
             <label>Email address<input type="email" name="email" autocomplete="email" required></label><label>Cell phone<input type="tel" name="phone" autocomplete="tel" required></label>
             <label>Password <small>(at least 12 characters)</small><input type="password" name="password" autocomplete="new-password" minlength="12" required></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" minlength="12" required></label>
             <label class="brah-inline"><input type="checkbox" name="privacy_consent" value="1" required> I consent to the clinic using this information to manage my account and requests.</label>
-            <label class="brah-human"><input type="checkbox" name="human_confirmed" value="1" required> I’m human</label><button type="submit">Request an account</button>
+            <label class="brah-human"><input type="checkbox" name="human_confirmed" value="1" required> I&rsquo;m human</label><button type="submit">Request an account</button>
           </form><details><summary>Didn’t receive the verification email?</summary><form method="post" action="<?php echo esc_url(self::portal_action_url()); ?>"><input type="hidden" name="action" value="brah_portal_resend"><?php wp_nonce_field('brah_portal_resend','brah_portal_nonce'); ?><label>Email address<input type="email" name="email" required></label><button type="submit">Resend verification</button></form></details></section>
         </div>
     <?php }
@@ -309,14 +314,18 @@ final class BRAH_Client_Portal {
     <?php }
 
     private static function account_actions($user,$status) {
-        $actions=[];if($status==='pending_email')$actions=['verify_approve'=>'Verify & approve','resend'=>'Resend verification'];elseif($status==='pending_approval')$actions=['approve'=>'Approve','decline'=>'Decline'];elseif($status==='approved')$actions=['disable'=>'Disable'];else $actions=['approve'=>'Approve'];
-        foreach($actions as $action=>$label){?><form style="display:inline-block;margin:0 5px 5px 0" method="post" action="<?php echo esc_url(admin_url('admin-post.php'));?>"><input type="hidden" name="action" value="brah_portal_account_action"><input type="hidden" name="client_id" value="<?php echo absint($user->ID);?>"><input type="hidden" name="account_action" value="<?php echo esc_attr($action);?>"><?php wp_nonce_field('brah_portal_account_'.$user->ID,'brah_portal_nonce');?><button class="button <?php echo in_array($action,['approve','verify_approve'],true)?'button-primary':'';?>" type="submit"><?php echo esc_html($label);?></button></form><?php }
+        $actions=[];if($status==='pending_email')$actions=['resend'=>'Resend verification'];elseif($status==='pending_approval')$actions=['approve'=>'Approve','decline'=>'Decline'];elseif($status==='approved')$actions=['disable'=>'Disable'];else $actions=['resend'=>'Resend verification'];
+        foreach($actions as $action=>$label){?><form style="display:inline-block;margin:0 5px 5px 0" method="post" action="<?php echo esc_url(admin_url('admin-post.php'));?>"><input type="hidden" name="action" value="brah_portal_account_action"><input type="hidden" name="client_id" value="<?php echo absint($user->ID);?>"><input type="hidden" name="account_action" value="<?php echo esc_attr($action);?>"><?php wp_nonce_field('brah_portal_account_'.$user->ID,'brah_portal_nonce');?><button class="button <?php echo $action==='approve'?'button-primary':'';?>" type="submit"><?php echo esc_html($label);?></button></form><?php }
     }
 
     public static function handle_account_action() {
         if(!current_user_can('manage_options'))wp_die('Not authorized.','Forbidden',['response'=>403]);$user_id=absint($_POST['client_id']??0);check_admin_referer('brah_portal_account_'.$user_id,'brah_portal_nonce');$user=get_userdata($user_id);if(!$user||(!in_array(self::ROLE_PENDING,(array)$user->roles,true)&&!in_array(self::ROLE_CLIENT,(array)$user->roles,true)))wp_die('Invalid client account.','Bad request',['response'=>400]);$action=sanitize_key($_POST['account_action']??'');
         if($action==='resend')self::send_verification($user_id);
-        elseif(in_array($action,['approve','verify_approve'],true)){$user->set_role(self::ROLE_CLIENT);update_user_meta($user_id,'brah_client_status','approved');if($action==='verify_approve'){delete_user_meta($user_id,'brah_verify_hash');delete_user_meta($user_id,'brah_verify_expires');update_user_meta($user_id,'brah_email_verified_at',current_time('c'));}wp_mail($user->user_email,'Your Brooker Ridge Client Portal account is approved',"Hello {$user->first_name},\n\nYour account is approved. You can now sign in at:\n".self::portal_url(),['Content-Type: text/plain; charset=UTF-8']);}
+        elseif($action==='approve'){
+            if(get_user_meta($user_id,'brah_client_status',true)!=='pending_approval'||!self::has_verified_email($user_id)){self::send_verification($user_id);self::account_history($user_id,'approval_blocked_email_unverified',get_current_user_id());self::log('approval_blocked',['user_id'=>$user_id,'status'=>'pending_email']);wp_safe_redirect(admin_url('options-general.php?page=brah-client-portal&updated=1'));exit;}
+            $user->set_role(self::ROLE_CLIENT);update_user_meta($user_id,'brah_client_status','approved');wp_mail($user->user_email,'Your Brooker Ridge Client Portal account is approved',"Hello {$user->first_name},\n\nYour account is approved. You can now sign in at:\n".self::portal_url(),['Content-Type: text/plain; charset=UTF-8']);
+        }
+        elseif($action==='verify_approve'){self::send_verification($user_id);self::account_history($user_id,'approval_blocked_email_unverified',get_current_user_id());self::log('approval_blocked',['user_id'=>$user_id,'status'=>'pending_email']);wp_safe_redirect(admin_url('options-general.php?page=brah-client-portal&updated=1'));exit;}
         elseif(in_array($action,['disable','decline'],true)){$user->set_role(self::ROLE_PENDING);update_user_meta($user_id,'brah_client_status',$action==='disable'?'disabled':'declined');}
         self::account_history($user_id,$action,get_current_user_id());self::log('account_action',['user_id'=>$user_id,'status'=>$action]);wp_safe_redirect(admin_url('options-general.php?page=brah-client-portal&updated=1'));exit;
     }
