@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Brooker Ridge Forms
  * Description: Subscription-free appointment and new-client forms for Brooker Ridge Animal Hospital.
- * Version: 2.2.7
+ * Version: 2.2.8
  * Author: Brooker Ridge Animal Hospital
  * Update URI: https://github.com/misoz2002/brooker-ridge-forms
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class BRAH_Forms {
-    const VERSION = '2.2.7';
+    const VERSION = '2.2.8';
     const JOTFORM_FALLBACK = true;
     const JOTFORM_APPOINTMENT_ID = '261831439712054';
     const JOTFORM_REGISTRATION_ID = '261851787281265';
@@ -22,6 +22,7 @@ final class BRAH_Forms {
         add_shortcode('brooker_registration_form', [__CLASS__, 'registration']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'homepage_seo_assets']);
+        add_action('template_redirect', [__CLASS__, 'legacy_seo_redirects'], -20);
         add_action('template_redirect', [__CLASS__, 'start_homepage_seo_output_buffer'], 0);
         add_action('wp_head', [__CLASS__, 'homepage_schema'], 20);
         add_action('wp_head', [__CLASS__, 'public_page_robots_meta'], 99);
@@ -217,6 +218,27 @@ final class BRAH_Forms {
         if(isset($map[$path]))return $map[$path];
         if(function_exists('is_front_page')&&is_front_page())return $map[''];
         return null;
+    }
+
+    public static function legacy_seo_redirects() {
+        if(is_admin()||(defined('DOING_AJAX')&&DOING_AJAX))return;
+        $request_uri=(string)($_SERVER['REQUEST_URI']??'');
+        $path=trim((string)wp_parse_url($request_uri,PHP_URL_PATH),'/');
+        $query=[]; parse_str((string)wp_parse_url($request_uri,PHP_URL_QUERY),$query);
+        $redirects=[
+            'vet-services.html'=>'/vet-services/',
+            'contact.html'=>'/contact-us/',
+            'pet-vaccinations.html'=>'/pet-vaccinations-and-wellness/',
+            'spaying-neutering-surgery.html'=>'/vet-surgery-spay-neuter/',
+            'pet-grooming.html'=>'/vet-services/',
+        ];
+        $target=$redirects[$path]??'';
+        if(!$target&&$path===''&&($query['page_id']??'')==='224'){
+            $target='/pet-vaccinations-and-wellness/';
+        }
+        if(!$target)return;
+        wp_safe_redirect(home_url($target),301,'Brooker Ridge Forms');
+        exit;
     }
 
     public static function public_page_robots($robots) {
